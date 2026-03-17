@@ -7,6 +7,8 @@ import {
   Model,
   Table,
 } from 'sequelize-typescript';
+import { ChatMessage } from '../../messages/entities/chat-message.entity';
+import { Offer } from '../../offers/entities/offer.entity';
 import { Order } from '../../orders/entities/order.entity';
 import { User } from '../../users/entities/user.entity';
 
@@ -57,4 +59,10 @@ export class Product extends Model {
 
   @HasMany(() => Order, { foreignKey: 'productId', as: 'orders' })
   declare orders: Order[];
+
+  @HasMany(() => Offer, { foreignKey: 'productId', as: 'offers' })
+  declare offers: Offer[];
+
+  @HasMany(() => ChatMessage, { foreignKey: 'productId', as: 'messages' })
+  declare messages: ChatMessage[];
 }

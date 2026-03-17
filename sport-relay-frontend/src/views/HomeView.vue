@@ -1,11 +1,62 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { apiClient } from '../services/api';
 import ProductCard from '../components/ProductCard.vue';
 import AddProductModal from '../components/AddProductModal.vue';
 import { useAuthStore } from '../stores/auth';
 import type { Product } from '../types/product';
+import type { UserRole } from '../types/auth';
+
+interface OfferNotificationItem {
+  id: number;
+  amount: number;
+  status: 'pending' | 'accepted' | 'rejected' | 'cancelled';
+  buyer?: {
+    displayName: string;
+  };
+  product?: {
+    id: number;
+    name: string;
+  };
+}
+
+interface MessageNotificationItem {
+  id: number;
+  senderId: number;
+  recipientId: number;
+  readAt?: string | null;
+  product?: {
+    id: number;
+    name: string;
+  };
+  sender?: {
+    displayName: string;
+    role: UserRole;
+  };
+}
+
+interface SaleNotificationItem {
+  id: number;
+  quantity: number;
+  totalPrice: number;
+  status: 'pending' | 'paid' | 'shipped' | 'completed' | 'cancelled';
+  buyer?: {
+    displayName: string;
+  };
+  product?: {
+    id: number;
+    name: string;
+  };
+}
+
+interface ConnectionNotification {
+  id: string;
+  type: 'offer' | 'purchase' | 'message';
+  text: string;
+  productId?: number;
+  withUserId?: number;
+}
 
 const products = ref<Product[]>([]);
 const selectedCategory = ref('Tous');
@@ -15,9 +66,70 @@ const loading = ref(true);
 const error = ref<string | null>(null);
 const isModalOpen = ref(false);
 const successToast = ref<string | null>(null);
+const connectionNotifications = ref<ConnectionNotification[]>([]);
+const dismissedNotificationIds = ref<Set<string>>(new Set());
 const auth = useAuthStore();
 const router = useRouter();
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
+const DISMISSED_NOTIFICATIONS_STORAGE_PREFIX = 'home-dismissed-notifications';
+
+const dismissedNotificationsStorageKey = computed(() => {
+  const userId = auth.user.value?.id;
+  return userId ? `${DISMISSED_NOTIFICATIONS_STORAGE_PREFIX}:${userId}` : null;
+});
+
+const loadDismissedNotifications = () => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const storageKey = dismissedNotificationsStorageKey.value;
+  if (!storageKey) {
+    dismissedNotificationIds.value = new Set();
+    return;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) {
+      dismissedNotificationIds.value = new Set();
+      return;
+    }
+
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      dismissedNotificationIds.value = new Set();
+      return;
+    }
+
+    const validIds = parsed.filter(
+      (item): item is string => typeof item === 'string' && item.length > 0,
+    );
+    dismissedNotificationIds.value = new Set(validIds);
+  } catch {
+    dismissedNotificationIds.value = new Set();
+  }
+};
+
+const persistDismissedNotifications = () => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const storageKey = dismissedNotificationsStorageKey.value;
+  if (!storageKey) {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(
+      storageKey,
+      JSON.stringify(Array.from(dismissedNotificationIds.value)),
+    );
+  } catch {
+    // Ignore localStorage write failures.
+  }
+};
 
 const showSuccessToast = (message: string) => {
   successToast.value = message;
@@ -57,6 +169,10 @@ const sellerHubTooltip = computed(() => {
   return 'Ouvrir l espace vendeur';
 });
 
+const shouldShowSellerHubButton = computed(
+  () => !auth.isAuthenticated.value || auth.role.value !== 'buyer',
+);
+
 const filteredProducts = computed(() => {
   return products.value.filter(product => {
     const matchCategory = selectedCategory.value === 'Tous' || product.category === selectedCategory.value;
@@ -84,6 +200,125 @@ const fetchProducts = async () => {
   } finally {
     loading.value = false;
   }
+};
+
+const fetchConnectionNotifications = async () => {
+  if (!auth.isAuthenticated.value || !auth.user.value) {
+    connectionNotifications.value = [];
+    return;
+  }
+
+  const notices: ConnectionNotification[] = [];
+
+  if (auth.canSell.value) {
+    try {
+      const receivedOffers = await apiClient.get<OfferNotificationItem[]>('/offers/received');
+      const pendingOffers = receivedOffers.data.filter((offer) => offer.status === 'pending');
+      for (const offer of pendingOffers.slice(0, 3)) {
+        const productName = offer.product?.name ?? 'un produit';
+        const buyerName = offer.buyer?.displayName ?? 'un acheteur';
+        notices.push({
+          id: `offer-${offer.id}`,
+          type: 'offer',
+          text: `Nouvelle proposition: ${Number(offer.amount).toFixed(2)} EUR de ${buyerName} sur ${productName}.`,
+          productId: offer.product?.id,
+        });
+      }
+    } catch {
+      // Best-effort notifications only.
+    }
+
+    try {
+      const sales = await apiClient.get<SaleNotificationItem[]>('/orders/sales');
+      const directPurchases = sales.data.filter((order) => order.status === 'pending');
+      for (const order of directPurchases.slice(0, 3)) {
+        const productName = order.product?.name ?? 'un produit';
+        const buyerName = order.buyer?.displayName ?? 'un acheteur';
+        notices.push({
+          id: `purchase-${order.id}`,
+          type: 'purchase',
+          text: `Achat direct: ${buyerName} a achete ${order.quantity} x ${productName} (${Number(order.totalPrice).toFixed(2)} EUR).`,
+          productId: order.product?.id,
+        });
+      }
+    } catch {
+      // Best-effort notifications only.
+    }
+  }
+
+  try {
+    const myMessages = await apiClient.get<MessageNotificationItem[]>('/messages/my');
+    const unreadMessages = myMessages.data.filter(
+      (message) => message.recipientId === auth.user.value!.id && !message.readAt,
+    );
+
+    const perProductCounts = new Map<string, number>();
+    const productIds = new Map<string, number | undefined>();
+    const counterpartIds = new Map<string, number | undefined>();
+    const counterpartNames = new Map<string, string | undefined>();
+    for (const message of unreadMessages) {
+      const productKey = `${message.product?.id ?? 0}:${message.senderId}`;
+      perProductCounts.set(productKey, (perProductCounts.get(productKey) ?? 0) + 1);
+      if (!productIds.has(productKey)) {
+        productIds.set(productKey, message.product?.id);
+      }
+      if (!counterpartIds.has(productKey)) {
+        counterpartIds.set(productKey, message.senderId);
+      }
+      if (!counterpartNames.has(productKey)) {
+        counterpartNames.set(productKey, message.sender?.displayName);
+      }
+    }
+
+    for (const [productKey, count] of perProductCounts.entries()) {
+      const productId = productIds.get(productKey);
+      const withUserId = counterpartIds.get(productKey);
+      const displayName = counterpartNames.get(productKey);
+      const productName =
+        unreadMessages.find(
+          (message) => `${message.product?.id ?? 0}:${message.senderId}` === productKey,
+        )?.product?.name ?? 'une annonce';
+
+      notices.push({
+        id: `message-${productKey}`,
+        type: 'message',
+        text: `Nouveau message: ${count} non lu(s) de ${displayName ?? 'un acheteur'} sur ${productName}.`,
+        productId,
+        withUserId,
+      });
+    }
+  } catch {
+    // Best-effort notifications only.
+  }
+
+  connectionNotifications.value = notices
+    .filter((notice) => !dismissedNotificationIds.value.has(notice.id))
+    .slice(0, 5);
+};
+
+const dismissNotification = (notificationId: string) => {
+  const next = new Set(dismissedNotificationIds.value);
+  next.add(notificationId);
+  dismissedNotificationIds.value = next;
+  connectionNotifications.value = connectionNotifications.value.filter(
+    (item) => item.id !== notificationId,
+  );
+};
+
+const openNotificationProduct = (notification: ConnectionNotification) => {
+  dismissNotification(notification.id);
+
+  if (!notification.productId) {
+    return;
+  }
+  void router.push({
+    name: 'product-detail',
+    params: { id: notification.productId },
+    query:
+      notification.type === 'message' && notification.withUserId
+        ? { withUserId: String(notification.withUserId) }
+        : undefined,
+  });
 };
 
 const openSellModal = () => {
@@ -138,8 +373,32 @@ const handleProductAdded = async (payload: { name: string }) => {
 };
 
 onMounted(() => {
-  fetchProducts();
+  loadDismissedNotifications();
+  void fetchProducts();
+  void fetchConnectionNotifications();
 });
+
+watch(dismissedNotificationIds, () => {
+  persistDismissedNotifications();
+});
+
+watch(dismissedNotificationsStorageKey, () => {
+  loadDismissedNotifications();
+  void fetchConnectionNotifications();
+});
+
+watch(
+  () => auth.isAuthenticated.value,
+  (isAuthenticated) => {
+    if (!isAuthenticated) {
+      dismissedNotificationIds.value = new Set();
+      connectionNotifications.value = [];
+      return;
+    }
+    loadDismissedNotifications();
+    void fetchConnectionNotifications();
+  },
+);
 
 onBeforeUnmount(() => {
   if (toastTimer) {
@@ -201,6 +460,7 @@ onBeforeUnmount(() => {
           </button>
 
           <button
+            v-if="shouldShowSellerHubButton"
             type="button"
             :disabled="!auth.canSell"
             :title="sellerHubTooltip"
@@ -247,6 +507,40 @@ onBeforeUnmount(() => {
     </header>
 
     <main class="container mx-auto p-6">
+      <div
+        v-if="connectionNotifications.length > 0"
+        class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"
+      >
+        <p class="text-sm font-black text-amber-800">Notifications a la connexion</p>
+        <ul class="mt-2 space-y-1">
+          <li
+            v-for="notification in connectionNotifications"
+            :key="notification.id"
+            class="text-sm flex items-start gap-2"
+          >
+            <button
+              v-if="notification.productId"
+              type="button"
+              class="font-semibold text-amber-800 underline decoration-amber-500 underline-offset-2 hover:text-amber-900"
+              @click="openNotificationProduct(notification)"
+            >
+              {{ notification.text }}
+            </button>
+            <span v-else class="font-medium text-amber-700">
+              {{ notification.text }}
+            </span>
+            <button
+              type="button"
+              class="ml-auto rounded border border-amber-300 bg-white/70 px-1.5 py-0.5 text-[10px] font-black text-amber-700 hover:bg-white"
+              title="Masquer"
+              @click="dismissNotification(notification.id)"
+            >
+              ✓
+            </button>
+          </li>
+        </ul>
+      </div>
+
       <div v-if="loading" class="text-center py-20 font-medium text-gray-500">
         Chargement du matériel...
       </div>

@@ -5,13 +5,31 @@ defineProps<{ product: Product }>();
 </script>
 
 <template>
-  <div class="bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition">
+  <div class="relative bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition">
     <img :src="product.imageUrl || 'https://via.placeholder.com/300'" class="w-full h-48 object-cover" />
+    <span
+      v-if="product.stock <= 0"
+      class="absolute left-3 top-3 rounded-md bg-red-600 px-2 py-1 text-xs font-black uppercase tracking-wide text-white"
+    >
+      Vendu
+    </span>
     <div class="p-4">
       <h3 class="font-bold text-lg">{{ product.name }}</h3>
-      <p class="text-sm text-gray-500 mt-1">
-        Vendeur: {{ product.seller?.displayName || 'Compte non renseigne' }}
-      </p>
+      <div class="mt-1 flex items-center gap-2 text-sm text-gray-500">
+        <img
+          v-if="product.seller?.profileImageUrl"
+          :src="product.seller.profileImageUrl"
+          :alt="product.seller?.displayName || 'Vendeur'"
+          class="h-6 w-6 rounded-full border border-gray-200 object-cover"
+        />
+        <span
+          v-else
+          class="inline-flex h-6 w-6 items-center justify-center rounded-full border border-gray-200 bg-gray-100 text-[10px] font-black uppercase text-gray-600"
+        >
+          {{ (product.seller?.displayName || 'V').slice(0, 1) }}
+        </span>
+        <p>Vendeur: {{ product.seller?.displayName || 'Compte non renseigne' }}</p>
+      </div>
       <div class="flex justify-between items-center mt-4">
         <span class="text-xl font-black">{{ product.price }}€</span>
         <router-link 

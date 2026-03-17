@@ -57,12 +57,15 @@ export class AuthService {
     email?: unknown;
     displayName?: unknown;
     role?: unknown;
+    profileImageUrl?: unknown;
   }) {
     return {
       id: Number(user.id),
       email: String(user.email),
       displayName: String(user.displayName),
       role: this.normalizeRole(user.role),
+      profileImageUrl:
+        typeof user.profileImageUrl === 'string' ? user.profileImageUrl : null,
     };
   }
 
@@ -228,7 +231,11 @@ export class AuthService {
       throw new UnauthorizedException('Session invalide.');
     }
 
-    const patch: { email?: string; displayName?: string } = {};
+    const patch: {
+      email?: string;
+      displayName?: string;
+      profileImageUrl?: string | null;
+    } = {};
 
     if (dto.displayName !== undefined) {
       const displayName = dto.displayName.trim();
@@ -254,6 +261,10 @@ export class AuthService {
         }
       }
       patch.email = email;
+    }
+
+    if (dto.profileImageUrl !== undefined) {
+      patch.profileImageUrl = dto.profileImageUrl;
     }
 
     if (Object.keys(patch).length === 0) {
@@ -297,5 +308,9 @@ export class AuthService {
     await this.usersService.updateById(userId, { passwordHash });
 
     return { message: 'Mot de passe mis a jour avec succes.' };
+  }
+
+  async updateAvatar(userId: number, profileImageUrl: string) {
+    return this.usersService.updateById(userId, { profileImageUrl });
   }
 }
