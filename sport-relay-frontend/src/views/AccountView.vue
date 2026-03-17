@@ -33,6 +33,14 @@ const passwordForm = ref({
 
 const canSeeSales = computed(() => auth.canSell.value);
 
+const totalPurchasesAmount = computed(() => {
+  return myOrders.value.reduce((sum, order) => sum + Number(order.totalPrice || 0), 0);
+});
+
+const totalSalesAmount = computed(() => {
+  return sales.value.reduce((sum, order) => sum + Number(order.totalPrice || 0), 0);
+});
+
 const formatOrderDate = (value: string) => {
   return new Date(value).toLocaleString();
 };
@@ -254,7 +262,12 @@ onMounted(() => {
         </section>
 
         <section class="glass-card border rounded-2xl p-6">
-          <h2 class="text-xl font-bold text-gray-900">Historique achats</h2>
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="text-xl font-bold text-gray-900">Historique achats</h2>
+            <p class="text-sm font-semibold text-gray-600">
+              Total: {{ totalPurchasesAmount.toFixed(2) }} EUR
+            </p>
+          </div>
 
           <div v-if="myOrders.length === 0" class="text-sm text-gray-500 mt-4">
             Aucune commande pour le moment.
@@ -289,7 +302,12 @@ onMounted(() => {
         </section>
 
         <section v-if="canSeeSales" class="glass-card border rounded-2xl p-6">
-          <h2 class="text-xl font-bold text-gray-900">Historique ventes</h2>
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="text-xl font-bold text-gray-900">Historique ventes</h2>
+            <p class="text-sm font-semibold text-gray-600">
+              Total: {{ totalSalesAmount.toFixed(2) }} EUR
+            </p>
+          </div>
 
           <div v-if="sales.length === 0" class="text-sm text-gray-500 mt-4">
             Aucune vente pour le moment.
