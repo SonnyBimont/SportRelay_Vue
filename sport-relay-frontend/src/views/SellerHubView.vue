@@ -80,6 +80,7 @@ const DISMISSED_CONVERSATIONS_STORAGE_PREFIX = 'seller-hub-dismissed-conversatio
 const hasResults = computed(() => products.value.length > 0);
 const canGoPrevious = computed(() => currentPage.value > 1);
 const canGoNext = computed(() => currentPage.value < totalPages.value);
+const isSoldProduct = (product: Product) => product.stock <= 0;
 const visibleConversations = computed(() =>
   conversations.value.filter(
     (thread) => !dismissedConversationKeys.value.has(getConversationDismissKey(thread)),
@@ -374,6 +375,10 @@ const fetchMyProducts = async () => {
 };
 
 const startEdit = (product: Product) => {
+  if (isSoldProduct(product)) {
+    error.value = 'Annonce vendue: modification desactivee.';
+    return;
+  }
   editingId.value = product.id;
   clearEditImageSelection();
   form.name = product.name;
@@ -598,11 +603,19 @@ onBeforeUnmount(() => {
           class="rounded-2xl border border-gray-200 bg-white/90 p-4 shadow-sm"
         >
           <div class="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-4">
-            <img
-              :src="product.imageUrl"
-              :alt="product.name"
-              class="h-44 w-full rounded-xl object-cover bg-gray-100"
-            />
+            <div class="relative">
+              <img
+                :src="product.imageUrl"
+                :alt="product.name"
+                class="h-44 w-full rounded-xl object-cover bg-gray-100"
+              />
+              <span
+                v-if="isSoldProduct(product)"
+                class="absolute left-3 top-3 rounded-md bg-red-600 px-2 py-1 text-xs font-black uppercase tracking-wide text-white"
+              >
+                Vendu
+              </span>
+            </div>
 
             <div>
               <div v-if="editingId !== product.id" class="space-y-3">
@@ -622,10 +635,11 @@ onBeforeUnmount(() => {
                 <div class="flex gap-2 pt-1">
                   <button
                     type="button"
+                    :disabled="isSoldProduct(product)"
                     @click="startEdit(product)"
-                    class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
+                    class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
                   >
-                    Modifier
+                    {{ isSoldProduct(product) ? 'Vendu' : 'Modifier' }}
                   </button>
                   <button
                     type="button"
