@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Product } from '../types/product';
+import { getCategoryBadgeClass } from '../utils/categoryBadge';
 
 defineProps<{ product: Product }>();
 </script>
@@ -14,7 +15,15 @@ defineProps<{ product: Product }>();
       Vendu
     </span>
     <div class="p-4">
-      <h3 class="font-bold text-lg">{{ product.name }}</h3>
+      <div class="flex items-center justify-between gap-2">
+        <h3 class="font-bold text-lg truncate">{{ product.name }}</h3>
+        <span
+          class="rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+          :class="getCategoryBadgeClass(product.category)"
+        >
+          {{ product.category }}
+        </span>
+      </div>
       <div class="mt-1 flex items-center gap-2 text-sm text-gray-500">
         <img
           v-if="product.seller?.profileImageUrl"

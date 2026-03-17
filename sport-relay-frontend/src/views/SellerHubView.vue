@@ -6,6 +6,7 @@ import { useRouter } from 'vue-router';
 import { apiClient } from '../services/api';
 import { createRealtimeSocket } from '../services/realtime';
 import { useAuthStore } from '../stores/auth';
+import { PRODUCT_CATEGORIES } from '../constants/categories';
 import type { UserRole } from '../types/auth';
 import type { Product } from '../types/product';
 
@@ -73,7 +74,7 @@ const form = reactive({
   condition: 'occasion',
 });
 
-const categories = ['Cyclisme', 'Randonnée', 'Musculation', 'Tennis'];
+const categories = [...PRODUCT_CATEGORIES];
 const conditions = ['occasion', 'neuf', 'reconditionne'];
 const DISMISSED_CONVERSATIONS_STORAGE_PREFIX = 'seller-hub-dismissed-conversations';
 

@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { apiClient } from '../services/api';
 import ProductCard from '../components/ProductCard.vue';
 import AddProductModal from '../components/AddProductModal.vue';
+import { ALL_CATEGORIES_LABEL } from '../constants/categories';
 import { useAuthStore } from '../stores/auth';
 import type { Product } from '../types/product';
 import type { UserRole } from '../types/auth';
@@ -60,8 +61,8 @@ interface ConnectionNotification {
 
 const products = ref<Product[]>([]);
 const selectedCategory = ref('Tous');
+const selectedSearchCategory = ref(ALL_CATEGORIES_LABEL);
 const searchQuery = ref(''); 
-const categories = ['Tous', 'Cyclisme', 'Randonnée', 'Musculation', 'Tennis']
 const loading = ref(true);
 const error = ref<string | null>(null);
 const isModalOpen = ref(false);
@@ -173,12 +174,66 @@ const shouldShowSellerHubButton = computed(
   () => !auth.isAuthenticated.value || auth.role.value !== 'buyer',
 );
 
+const availableCategories = computed(() => {
+  const categories = new Set<string>();
+  for (const product of products.value) {
+    const category = (product.category ?? '').trim();
+    if (category.length > 0) {
+      categories.add(category);
+    }
+  }
+  return Array.from(categories).sort((a, b) => a.localeCompare(b, 'fr'));
+});
+
+const categoryFilterOptions = computed(() => [
+  ALL_CATEGORIES_LABEL,
+  ...availableCategories.value,
+]);
+
+const trendingCategories = computed(() => {
+  const counts = new Map<string, number>();
+  for (const product of products.value) {
+    if (Number(product.stock) <= 0) {
+      continue;
+    }
+    const category = (product.category ?? '').trim();
+    if (!category) {
+      continue;
+    }
+    counts.set(category, (counts.get(category) ?? 0) + 1);
+  }
+
+  return Array.from(counts.entries())
+    .sort((a, b) => {
+      if (b[1] !== a[1]) {
+        return b[1] - a[1];
+      }
+      return a[0].localeCompare(b[0], 'fr');
+    })
+    .slice(0, 4)
+    .map(([category]) => category);
+});
+
+const headerCategories = computed(() => ['Tous', ...trendingCategories.value]);
+
 const filteredProducts = computed(() => {
+  const normalizedQuery = searchQuery.value.trim().toLowerCase();
   return products.value.filter(product => {
-    const matchCategory = selectedCategory.value === 'Tous' || product.category === selectedCategory.value;
-    const matchSearch = product.name.toLowerCase().includes(searchQuery.value.toLowerCase());
-    return matchCategory && matchSearch;
+    const matchHeaderCategory =
+      selectedCategory.value === 'Tous' || product.category === selectedCategory.value;
+    const matchFilterCategory =
+      selectedSearchCategory.value === ALL_CATEGORIES_LABEL ||
+      product.category === selectedSearchCategory.value;
+    const searchable = `${product.name} ${product.description} ${product.category}`.toLowerCase();
+    const matchSearch = normalizedQuery.length === 0 || searchable.includes(normalizedQuery);
+    return matchHeaderCategory && matchFilterCategory && matchSearch;
   });
+});
+
+watch(headerCategories, (tabs) => {
+  if (!tabs.includes(selectedCategory.value)) {
+    selectedCategory.value = 'Tous';
+  }
 });
 
 const fetchProducts = async () => {
@@ -413,13 +468,25 @@ onBeforeUnmount(() => {
       <div class="container mx-auto p-4 flex flex-col md:flex-row justify-between items-center gap-4">
         <router-link :to="{ name: 'home' }" class="text-2xl font-black text-blue-600 tracking-tight hover:text-blue-700">SportRelay</router-link>
         
-        <div class="relative w-full max-w-md">
+        <div class="w-full max-w-xl grid grid-cols-1 md:grid-cols-[1fr_220px] gap-2">
           <input 
             v-model="searchQuery"
             type="text" 
-            placeholder="Rechercher un équipement..." 
+            placeholder="Rechercher un equipement, une categorie..." 
             class="w-full pl-4 pr-10 py-2 border border-gray-300 rounded-xl bg-white/80 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
           />
+          <select
+            v-model="selectedSearchCategory"
+            class="w-full rounded-xl border border-gray-300 bg-white/80 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option
+              v-for="category in categoryFilterOptions"
+              :key="category"
+              :value="category"
+            >
+              {{ category }}
+            </option>
+          </select>
         </div>
 
         <div class="flex items-center gap-4">
@@ -429,7 +496,7 @@ onBeforeUnmount(() => {
 
           <nav class="hidden lg:flex space-x-2">
             <button 
-              v-for="cat in categories" 
+              v-for="cat in headerCategories" 
               :key="cat"
               @click="selectedCategory = cat"
               :class="[
@@ -511,7 +578,7 @@ onBeforeUnmount(() => {
         v-if="connectionNotifications.length > 0"
         class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"
       >
-        <p class="text-sm font-black text-amber-800">Notifications a la connexion</p>
+        <p class="text-sm font-black text-amber-800">Notifications :</p>
         <ul class="mt-2 space-y-1">
           <li
             v-for="notification in connectionNotifications"

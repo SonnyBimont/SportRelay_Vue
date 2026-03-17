@@ -8,6 +8,7 @@ import { createRealtimeSocket } from '../services/realtime';
 import { useAuthStore } from '../stores/auth';
 import type { Product } from '../types/product';
 import type { UserRole } from '../types/auth';
+import { getCategoryBadgeClass } from '../utils/categoryBadge';
 
 interface ApiUser {
   id: number;
@@ -603,7 +604,15 @@ onBeforeUnmount(() => {
     <div class="glass-card flex flex-col md:flex-row gap-10 mt-6 p-8 rounded-2xl shadow-sm border border-white/70">
       <img :src="product.imageUrl || 'https://via.placeholder.com/500'" class="w-full md:w-1/2 rounded-xl" />
       <div class="w-full">
-        <h1 class="text-4xl font-black">{{ product.name }}</h1>
+        <div class="flex flex-wrap items-center gap-3">
+          <h1 class="text-4xl font-black">{{ product.name }}</h1>
+          <span
+            class="rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide"
+            :class="getCategoryBadgeClass(product.category)"
+          >
+            {{ product.category }}
+          </span>
+        </div>
         <div class="mt-1 mb-2 flex items-center gap-2 text-sm text-gray-500">
           <img
             v-if="product.seller?.profileImageUrl"
