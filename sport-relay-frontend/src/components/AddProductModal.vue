@@ -2,6 +2,7 @@
 import axios from 'axios';
 import { ref } from 'vue';
 import { apiClient } from '../services/api';
+import { PRODUCT_CATEGORIES } from '../constants/categories';
 
 const emit = defineEmits<{
   (e: 'close'): void;
@@ -209,10 +210,13 @@ const handleSubmit = async () => {
           <div>
             <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Catégorie</label>
             <select v-model="form.category" class="w-full border rounded-lg p-2 bg-gray-50">
-              <option>Cyclisme</option>
-              <option>Randonnée</option>
-              <option>Musculation</option>
-              <option>Tennis</option>
+              <option
+                v-for="category in PRODUCT_CATEGORIES"
+                :key="category"
+                :value="category"
+              >
+                {{ category }}
+              </option>
             </select>
           </div>
           <div>
