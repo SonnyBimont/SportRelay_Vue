@@ -30,8 +30,26 @@ defineProps<{ product: Product }>();
         </span>
         <p>Vendeur: {{ product.seller?.displayName || 'Compte non renseigne' }}</p>
       </div>
-      <div class="flex justify-between items-center mt-4">
+      <div class="flex justify-between items-center mt-4 gap-2">
         <span class="text-xl font-black">{{ product.price }}€</span>
+        <span
+          class="rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide"
+          :class="
+            product.condition === 'neuf'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : product.condition === 'reconditionne'
+                ? 'border-blue-200 bg-blue-50 text-blue-700'
+                : 'border-amber-200 bg-amber-50 text-amber-700'
+          "
+        >
+          {{
+            product.condition === 'neuf'
+              ? 'Neuf'
+              : product.condition === 'reconditionne'
+                ? 'Reconditionne'
+                : 'Occasion'
+          }}
+        </span>
         <router-link 
           :to="{ name: 'product-detail', params: { id: product.id } }"
           class="bg-gray-900 text-white px-3 py-2 rounded-lg text-sm hover:bg-blue-600 transition"

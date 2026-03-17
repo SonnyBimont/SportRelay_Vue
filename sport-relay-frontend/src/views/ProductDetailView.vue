@@ -138,24 +138,18 @@ const sellerOnline = computed(() => {
   return onlineUserIds.value.has(sellerId);
 });
 
-const acceptedOffer = computed(() => {
-  return offers.value.find((offer) => offer.status === 'accepted') ?? null;
-});
-
-const hasAcceptedOffer = computed(() => Boolean(acceptedOffer.value));
-
 const canBuyNow = computed(() => {
   if (!product.value) {
     return false;
   }
-  return canInteract.value && product.value.stock > 0 && !hasAcceptedOffer.value;
+  return canInteract.value && product.value.stock > 0;
 });
 
 const canSendOffer = computed(() => {
   if (!product.value) {
     return false;
   }
-  return canInteract.value && product.value.stock > 0 && !hasAcceptedOffer.value;
+  return canInteract.value && product.value.stock > 0;
 });
 
 const extractApiMessage = (err: unknown, fallback: string) => {
@@ -383,9 +377,7 @@ const buyNow = async () => {
   }
 
   if (!canBuyNow.value) {
-    error.value = hasAcceptedOffer.value
-      ? 'Une offre a deja ete acceptee pour cette annonce.'
-      : 'Cette annonce n est plus disponible a l achat.';
+    error.value = 'Cette annonce n est plus disponible a l achat.';
     return;
   }
 
@@ -429,9 +421,7 @@ const sendOffer = async () => {
   }
 
   if (!canSendOffer.value) {
-    error.value = hasAcceptedOffer.value
-      ? 'Une offre a deja ete acceptee pour cette annonce.'
-      : 'Cette annonce n accepte plus d offres.';
+    error.value = 'Cette annonce n accepte plus d offres.';
     return;
   }
 
@@ -665,9 +655,6 @@ onBeforeUnmount(() => {
               {{ buying ? 'Traitement...' : 'Acheter maintenant' }}
             </button>
           </div>
-          <p v-if="hasAcceptedOffer" class="text-xs font-semibold text-amber-700">
-            Vente reservee: une offre a deja ete acceptee.
-          </p>
         </div>
 
         <div class="mt-4 grid gap-4 rounded-xl border border-gray-200 bg-white/80 p-4">

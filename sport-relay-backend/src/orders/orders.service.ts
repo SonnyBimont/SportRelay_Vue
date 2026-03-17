@@ -1,6 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { Offer } from '../offers/entities/offer.entity';
 import { Product } from '../products/entities/product.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { Order } from './entities/order.entity';
@@ -12,8 +11,6 @@ export class OrdersService {
     private readonly orderModel: typeof Order,
     @InjectModel(Product)
     private readonly productModel: typeof Product,
-    @InjectModel(Offer)
-    private readonly offerModel: typeof Offer,
   ) {}
 
   async createOrder(buyerId: number, dto: CreateOrderDto): Promise<Order> {
@@ -33,19 +30,6 @@ export class OrdersService {
     }
     if (product.stock < quantity) {
       throw new BadRequestException('Stock insuffisant.');
-    }
-
-    const acceptedOffer = await this.offerModel.findOne({
-      where: {
-        productId: product.id,
-        status: 'accepted',
-      },
-    });
-
-    if (acceptedOffer) {
-      throw new BadRequestException(
-        'Une offre a deja ete acceptee pour cette annonce. L achat direct est desactive.',
-      );
     }
 
     const totalPrice = Number(product.price) * quantity;

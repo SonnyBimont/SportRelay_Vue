@@ -64,19 +64,6 @@ export class OffersService {
       );
     }
 
-    const acceptedOffer = await this.offerModel.findOne({
-      where: {
-        productId: product.id,
-        status: 'accepted',
-      },
-    });
-
-    if (acceptedOffer) {
-      throw new BadRequestException(
-        'Une offre est deja acceptee pour cette annonce.',
-      );
-    }
-
     const offer = await this.offerModel.create({
       productId: product.id,
       buyerId,
@@ -213,22 +200,6 @@ export class OffersService {
     }
 
     if (nextStatus === 'accepted') {
-      const existingAcceptedOffer = await this.offerModel.findOne({
-        where: {
-          productId: product.id,
-          status: 'accepted',
-        },
-      });
-
-      if (
-        existingAcceptedOffer &&
-        Number(existingAcceptedOffer.id) !== Number(offer.id)
-      ) {
-        throw new BadRequestException(
-          'Une offre a deja ete acceptee pour cette annonce.',
-        );
-      }
-
       const offerQuantity = Number(offer.quantity ?? 1);
       if (offerQuantity <= 0) {
         throw new BadRequestException('Quantite d offre invalide.');
@@ -259,18 +230,20 @@ export class OffersService {
         status: 'paid',
       });
 
-      await this.offerModel.update(
-        {
-          status: 'rejected',
-          sellerResponse: 'Annonce vendue apres acceptation d une autre offre.',
-        },
-        {
-          where: {
-            productId: Number(product.id),
-            status: 'pending',
+      if (Number(product.stock) <= 0) {
+        await this.offerModel.update(
+          {
+            status: 'rejected',
+            sellerResponse: 'Stock epuise apres acceptation d une autre offre.',
           },
-        },
-      );
+          {
+            where: {
+              productId: Number(product.id),
+              status: 'pending',
+            },
+          },
+        );
+      }
     }
 
     const productId = Number(product.id);
