@@ -12,18 +12,39 @@ export class ProductsService {
   ) {}
 
   // Créer un produit
-  async create(createProductDto: CreateProductDto): Promise<Product> {
-    return this.productModel.create(createProductDto as any);
+  async create(
+    createProductDto: CreateProductDto,
+    sellerId?: number,
+  ): Promise<Product> {
+    return this.productModel.create({
+      ...createProductDto,
+      sellerId: sellerId ?? null,
+    });
   }
 
   // Tout récupérer
   async findAll(): Promise<Product[]> {
-    return this.productModel.findAll();
+    return this.productModel.findAll({
+      include: [
+        {
+          association: 'seller',
+          attributes: ['id', 'email', 'displayName', 'role'],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
   }
 
   // Trouver un produit par son ID
   async findOne(id: number): Promise<Product> {
-    const product = await this.productModel.findByPk(id);
+    const product = await this.productModel.findByPk(id, {
+      include: [
+        {
+          association: 'seller',
+          attributes: ['id', 'email', 'displayName', 'role'],
+        },
+      ],
+    });
     if (!product) {
       throw new NotFoundException(`Le produit avec l'ID ${id} n'existe pas.`);
     }
@@ -31,7 +52,10 @@ export class ProductsService {
   }
 
   // Mettre à jour (PATCH)
-  async update(id: number, updateProductDto: UpdateProductDto): Promise<Product> {
+  async update(
+    id: number,
+    updateProductDto: UpdateProductDto,
+  ): Promise<Product> {
     const product = await this.findOne(id);
     return product.update(updateProductDto);
   }

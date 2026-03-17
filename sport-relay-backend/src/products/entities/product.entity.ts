@@ -1,7 +1,24 @@
-import { Column, Model, Table, DataType } from 'sequelize-typescript';
+import {
+  BelongsTo,
+  Column,
+  DataType,
+  ForeignKey,
+  HasMany,
+  Model,
+  Table,
+} from 'sequelize-typescript';
+import { Order } from '../../orders/entities/order.entity';
+import { User } from '../../users/entities/user.entity';
 
 @Table
 export class Product extends Model {
+  @ForeignKey(() => User)
+  @Column({
+    type: DataType.INTEGER,
+    allowNull: true,
+  })
+  declare sellerId: number | null;
+
   @Column({
     type: DataType.STRING,
     allowNull: false,
@@ -34,4 +51,10 @@ export class Product extends Model {
 
   @Column(DataType.STRING)
   declare imageUrl: string;
+
+  @BelongsTo(() => User, { foreignKey: 'sellerId', as: 'seller' })
+  declare seller: User;
+
+  @HasMany(() => Order, { foreignKey: 'productId', as: 'orders' })
+  declare orders: Order[];
 }
