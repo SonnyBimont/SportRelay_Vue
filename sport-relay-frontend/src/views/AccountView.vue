@@ -266,15 +266,24 @@ onMounted(() => {
               :key="order.id"
               class="border rounded-xl p-4"
             >
-              <p class="font-semibold text-gray-900">
-                {{ order.product?.name || 'Produit supprime' }}
-              </p>
-              <p class="text-sm text-gray-600 mt-1">
-                Statut: {{ order.status }} | Quantite: {{ order.quantity }} | Total: {{ order.totalPrice }} EUR
-              </p>
-              <p class="text-xs text-gray-500 mt-1">
-                Date: {{ formatOrderDate(order.createdAt) }}
-              </p>
+              <div class="flex items-start gap-3">
+                <img
+                  :src="order.product?.imageUrl || 'https://via.placeholder.com/72'"
+                  :alt="order.product?.name || 'Produit'"
+                  class="h-16 w-16 rounded-lg border object-cover bg-gray-100"
+                />
+                <div class="min-w-0">
+                  <p class="font-semibold text-gray-900">
+                    {{ order.product?.name || 'Produit supprime' }}
+                  </p>
+                  <p class="text-sm text-gray-600 mt-1">
+                    Statut: {{ order.status }} | Quantite: {{ order.quantity }} | Total: {{ order.totalPrice }} EUR
+                  </p>
+                  <p class="text-xs text-gray-500 mt-1">
+                    Date: {{ formatOrderDate(order.createdAt) }}
+                  </p>
+                </div>
+              </div>
             </article>
           </div>
         </section>
@@ -292,15 +301,24 @@ onMounted(() => {
               :key="`sale-${order.id}`"
               class="border rounded-xl p-4"
             >
-              <p class="font-semibold text-gray-900">
-                {{ order.product?.name || 'Produit supprime' }}
-              </p>
-              <p class="text-sm text-gray-600 mt-1">
-                Acheteur: {{ order.buyer?.displayName || 'Inconnu' }} | Statut: {{ order.status }} | Total: {{ order.totalPrice }} EUR
-              </p>
-              <p class="text-xs text-gray-500 mt-1">
-                Date: {{ formatOrderDate(order.createdAt) }}
-              </p>
+              <div class="flex items-start gap-3">
+                <img
+                  :src="order.product?.imageUrl || 'https://via.placeholder.com/72'"
+                  :alt="order.product?.name || 'Produit'"
+                  class="h-16 w-16 rounded-lg border object-cover bg-gray-100"
+                />
+                <div class="min-w-0">
+                  <p class="font-semibold text-gray-900">
+                    {{ order.product?.name || 'Produit supprime' }}
+                  </p>
+                  <p class="text-sm text-gray-600 mt-1">
+                    Acheteur: {{ order.buyer?.displayName || 'Inconnu' }} | Statut: {{ order.status }} | Total: {{ order.totalPrice }} EUR
+                  </p>
+                  <p class="text-xs text-gray-500 mt-1">
+                    Date: {{ formatOrderDate(order.createdAt) }}
+                  </p>
+                </div>
+              </div>
             </article>
           </div>
         </section>
