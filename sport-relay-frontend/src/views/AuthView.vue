@@ -15,6 +15,7 @@ const error = ref<string | null>(null);
 const success = ref<string | null>(null);
 const seedResult = ref<string | null>(null);
 const rememberMe = ref(false);
+const currentUser = computed(() => auth.user.value);
 
 const loginForm = ref({
   email: '',
@@ -109,7 +110,7 @@ const runFakeSeed = async () => {
         class="mb-6 p-4 rounded-xl border border-blue-100 bg-blue-50"
       >
         <p class="text-sm text-blue-900 font-semibold">
-          Session active: {{ auth.user?.displayName }} ({{ auth.user?.role }})
+          Session active: {{ currentUser?.displayName }} ({{ currentUser?.role }})
         </p>
         <div class="flex gap-3 mt-3">
           <router-link

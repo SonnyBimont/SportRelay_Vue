@@ -38,6 +38,7 @@ export class UsersService {
         'email',
         'displayName',
         'role',
+        'profileImageUrl',
         'createdAt',
         'updatedAt',
       ],
@@ -50,7 +51,9 @@ export class UsersService {
 
   async updateById(
     id: number,
-    patch: Partial<Pick<User, 'email' | 'displayName' | 'passwordHash'>>,
+    patch: Partial<
+      Pick<User, 'email' | 'displayName' | 'passwordHash' | 'profileImageUrl'>
+    >,
   ): Promise<User> {
     const user = await this.findByIdForAuth(id);
     if (!user) {

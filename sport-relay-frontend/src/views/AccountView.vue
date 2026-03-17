@@ -15,8 +15,10 @@ const myOrders = ref<Order[]>([]);
 const sales = ref<Order[]>([]);
 const profileSaving = ref(false);
 const passwordSaving = ref(false);
+const avatarSaving = ref(false);
 const profileNotice = ref<string | null>(null);
 const passwordNotice = ref<string | null>(null);
+const avatarNotice = ref<string | null>(null);
 
 const profileForm = ref({
   displayName: '',
@@ -30,6 +32,10 @@ const passwordForm = ref({
 });
 
 const canSeeSales = computed(() => auth.canSell.value);
+
+const formatOrderDate = (value: string) => {
+  return new Date(value).toLocaleString();
+};
 
 const fetchData = async () => {
   loading.value = true;
@@ -77,6 +83,35 @@ const saveProfile = async () => {
     profileNotice.value = 'Impossible de mettre a jour les informations.';
   } finally {
     profileSaving.value = false;
+  }
+};
+
+const uploadAvatar = async (event: Event) => {
+  const input = event.target as HTMLInputElement | null;
+  const file = input?.files?.[0];
+  if (!file) {
+    return;
+  }
+
+  avatarSaving.value = true;
+  avatarNotice.value = null;
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await apiClient.post<AuthUser>('/auth/me/avatar', formData);
+    profile.value = response.data;
+    auth.user.value = response.data;
+    setStoredUser(response.data);
+    avatarNotice.value = 'Photo de profil mise a jour.';
+  } catch {
+    avatarNotice.value = 'Mise a jour de la photo impossible.';
+  } finally {
+    avatarSaving.value = false;
+    if (input) {
+      input.value = '';
+    }
   }
 };
 
@@ -143,6 +178,27 @@ onMounted(() => {
       <template v-else>
         <section class="glass-card border rounded-2xl p-6">
           <h2 class="text-xl font-bold text-gray-900">Profil</h2>
+          <div class="mt-4 flex items-center gap-4">
+            <img
+              :src="profile?.profileImageUrl || 'https://via.placeholder.com/96'"
+              alt="Photo de profil"
+              class="h-16 w-16 rounded-full border object-cover bg-gray-100"
+            />
+            <div>
+              <label class="inline-flex cursor-pointer items-center rounded-lg bg-gray-900 px-3 py-2 text-xs font-bold text-white hover:bg-black">
+                {{ avatarSaving ? 'Upload...' : 'Changer la photo' }}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  class="hidden"
+                  :disabled="avatarSaving"
+                  @change="uploadAvatar"
+                />
+              </label>
+              <p v-if="avatarNotice" class="mt-2 text-xs text-gray-600">{{ avatarNotice }}</p>
+            </div>
+          </div>
+
           <div class="grid md:grid-cols-3 gap-4 mt-4 text-sm">
             <div class="bg-gray-50 rounded-xl p-4">
               <p class="text-gray-500">Nom</p>
@@ -216,6 +272,9 @@ onMounted(() => {
               <p class="text-sm text-gray-600 mt-1">
                 Statut: {{ order.status }} | Quantite: {{ order.quantity }} | Total: {{ order.totalPrice }} EUR
               </p>
+              <p class="text-xs text-gray-500 mt-1">
+                Date: {{ formatOrderDate(order.createdAt) }}
+              </p>
             </article>
           </div>
         </section>
@@ -238,6 +297,9 @@ onMounted(() => {
               </p>
               <p class="text-sm text-gray-600 mt-1">
                 Acheteur: {{ order.buyer?.displayName || 'Inconnu' }} | Statut: {{ order.status }} | Total: {{ order.totalPrice }} EUR
+              </p>
+              <p class="text-xs text-gray-500 mt-1">
+                Date: {{ formatOrderDate(order.createdAt) }}
               </p>
             </article>
           </div>

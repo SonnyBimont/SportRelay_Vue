@@ -1,8 +1,28 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
+import { Op } from 'sequelize';
 import { Product } from './entities/product.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import type { UserRole } from '../users/entities/user.entity';
+
+export interface FindMineOptions {
+  page: number;
+  limit: number;
+  search?: string;
+}
+
+export interface FindMineResult {
+  items: Product[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
 
 @Injectable()
 export class ProductsService {
@@ -28,11 +48,74 @@ export class ProductsService {
       include: [
         {
           association: 'seller',
-          attributes: ['id', 'email', 'displayName', 'role'],
+          attributes: ['id', 'email', 'displayName', 'role', 'profileImageUrl'],
         },
       ],
       order: [['createdAt', 'DESC']],
     });
+  }
+
+  async findMine(sellerId: number, options: FindMineOptions): Promise<FindMineResult> {
+    const page = Number.isFinite(options.page) ? options.page : 1;
+    const limit = Number.isFinite(options.limit) ? options.limit : 10;
+    const safePage = page > 0 ? page : 1;
+    const safeLimit = Math.min(Math.max(limit, 1), 50);
+    const offset = (safePage - 1) * safeLimit;
+
+    const trimmedSearch = options.search?.trim() ?? '';
+
+    const whereClause = {
+      sellerId,
+      ...(trimmedSearch
+        ? {
+            [Op.or]: [
+              {
+                name: {
+                  [Op.like]: `%${trimmedSearch}%`,
+                },
+              },
+              {
+                description: {
+                  [Op.like]: `%${trimmedSearch}%`,
+                },
+              },
+              {
+                category: {
+                  [Op.like]: `%${trimmedSearch}%`,
+                },
+              },
+              {
+                condition: {
+                  [Op.like]: `%${trimmedSearch}%`,
+                },
+              },
+            ],
+          }
+        : {}),
+    };
+
+    const result = await this.productModel.findAndCountAll({
+      where: whereClause,
+      include: [
+        {
+          association: 'seller',
+          attributes: ['id', 'email', 'displayName', 'role', 'profileImageUrl'],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+      limit: safeLimit,
+      offset,
+    });
+
+    const totalPages = Math.max(1, Math.ceil(result.count / safeLimit));
+
+    return {
+      items: result.rows,
+      total: result.count,
+      page: safePage,
+      limit: safeLimit,
+      totalPages,
+    };
   }
 
   // Trouver un produit par son ID
@@ -41,7 +124,7 @@ export class ProductsService {
       include: [
         {
           association: 'seller',
-          attributes: ['id', 'email', 'displayName', 'role'],
+          attributes: ['id', 'email', 'displayName', 'role', 'profileImageUrl'],
         },
       ],
     });
@@ -55,14 +138,39 @@ export class ProductsService {
   async update(
     id: number,
     updateProductDto: UpdateProductDto,
+    user?: { id: number; role: UserRole },
   ): Promise<Product> {
     const product = await this.findOne(id);
+
+    if (
+      user &&
+      user.role !== 'admin' &&
+      product.sellerId !== null &&
+      product.sellerId !== user.id
+    ) {
+      throw new ForbiddenException(
+        'Vous ne pouvez modifier que vos propres annonces.',
+      );
+    }
+
     return product.update(updateProductDto);
   }
 
   // Supprimer
-  async remove(id: number): Promise<void> {
+  async remove(id: number, user?: { id: number; role: UserRole }): Promise<void> {
     const product = await this.findOne(id);
+
+    if (
+      user &&
+      user.role !== 'admin' &&
+      product.sellerId !== null &&
+      product.sellerId !== user.id
+    ) {
+      throw new ForbiddenException(
+        'Vous ne pouvez supprimer que vos propres annonces.',
+      );
+    }
+
     await product.destroy();
   }
 }
