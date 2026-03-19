@@ -364,6 +364,28 @@ const setupSocket = () => {
   });
 };
 
+const handlePayment = async () => {
+  if (!product.value) return;
+
+  buying.value = true; // Utilisez votre ref existante pour le loading
+  try {
+    const response = await apiClient.post('/payments/create-checkout-session', {
+      productName: product.value.name,
+      amount: product.value.price,
+      productId: product.value.id,
+      quantity: quantity.value // On envoie la quantité choisie
+    });
+    
+    if (response.data.url) {
+      window.location.href = response.data.url;
+    }
+  } catch (err) {
+    error.value = "Erreur lors de l'initialisation du paiement Stripe.";
+  } finally {
+    buying.value = false;
+  }
+};
+
 const buyNow = async () => {
   error.value = null;
   actionMessage.value = null;
@@ -658,10 +680,10 @@ onBeforeUnmount(() => {
             <button
               type="button"
               :disabled="buying || !canBuyNow"
-              @click="buyNow"
+              @click="handlePayment"
               class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:bg-blue-300"
             >
-              {{ buying ? 'Traitement...' : 'Acheter maintenant' }}
+              {{ buying ? 'Traitement...' : 'Acheter maintenant (Stripe)' }}
             </button>
           </div>
         </div>

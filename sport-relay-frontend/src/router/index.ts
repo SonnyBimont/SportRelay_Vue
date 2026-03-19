@@ -5,6 +5,7 @@ import AuthView from '../views/AuthView.vue';
 import AccountView from '../views/AccountView.vue';
 import ForbiddenView from '../views/ForbiddenView.vue';
 import SellerHubView from '../views/SellerHubView.vue';
+import SuccessView from '../views/SuccessView.vue';
 import { useAuthStore } from '../stores/auth';
 import type { UserRole } from '../types/auth';
 
@@ -52,6 +53,11 @@ const router = createRouter({
         roles: ['seller', 'admin'] as UserRole[]
       }
     },
+    {
+    path: '/success',
+    name: 'success',
+    component: SuccessView
+  },
     {
       path: '/forbidden',
       name: 'forbidden',
