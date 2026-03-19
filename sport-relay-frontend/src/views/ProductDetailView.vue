@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import axios from 'axios';
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import type { Socket } from 'socket.io-client';
-import { apiClient } from '../services/api';
-import { createRealtimeSocket } from '../services/realtime';
-import { useAuthStore } from '../stores/auth';
-import type { Product } from '../types/product';
-import type { UserRole } from '../types/auth';
-import { getCategoryBadgeClass } from '../utils/categoryBadge';
+import axios from "axios";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import type { Socket } from "socket.io-client";
+import { apiClient } from "../services/api";
+import { createRealtimeSocket } from "../services/realtime";
+import { useAuthStore } from "../stores/auth";
+import type { Product } from "../types/product";
+import type { UserRole } from "../types/auth";
+import { getCategoryBadgeClass } from "../utils/categoryBadge";
 
 interface ApiUser {
   id: number;
@@ -24,7 +24,7 @@ interface OfferItem {
   amount: number;
   quantity: number;
   message: string | null;
-  status: 'pending' | 'accepted' | 'rejected' | 'cancelled';
+  status: "pending" | "accepted" | "rejected" | "cancelled";
   sellerResponse: string | null;
   createdAt: string;
   buyer?: ApiUser;
@@ -61,8 +61,8 @@ const updatingOfferId = ref<number | null>(null);
 const quantity = ref(1);
 const offerPrice = ref<number | null>(null);
 const offerQuantity = ref(1);
-const offerMessage = ref('');
-const chatInput = ref('');
+const offerMessage = ref("");
+const chatInput = ref("");
 const offers = ref<OfferItem[]>([]);
 const messages = ref<MessageItem[]>([]);
 const loadingInteractions = ref(false);
@@ -163,10 +163,13 @@ const extractApiMessage = (err: unknown, fallback: string) => {
     | undefined;
 
   if (Array.isArray(responseData?.message) && responseData.message.length > 0) {
-    return responseData.message.join(' | ');
+    return responseData.message.join(" | ");
   }
 
-  if (typeof responseData?.message === 'string' && responseData.message.length > 0) {
+  if (
+    typeof responseData?.message === "string" &&
+    responseData.message.length > 0
+  ) {
     return responseData.message;
   }
 
@@ -179,7 +182,7 @@ const requireAuthOrRedirect = () => {
   }
 
   void router.push({
-    name: 'auth',
+    name: "auth",
     query: { redirect: route.fullPath },
   });
   return false;
@@ -233,11 +236,14 @@ const fetchPresence = async () => {
   }
 
   try {
-    const response = await apiClient.get<PresenceState[]>('/messages/presence', {
-      params: {
-        userIds: Array.from(ids).join(','),
+    const response = await apiClient.get<PresenceState[]>(
+      "/messages/presence",
+      {
+        params: {
+          userIds: Array.from(ids).join(","),
+        },
       },
-    });
+    );
 
     const next = new Set<number>();
     for (const state of response.data) {
@@ -273,7 +279,7 @@ const markCurrentConversationAsRead = async () => {
   }
 
   try {
-    await apiClient.post('/messages/read', {
+    await apiClient.post("/messages/read", {
       productId: product.value.id,
       withUserId,
     });
@@ -301,7 +307,7 @@ const refreshInteractions = async () => {
 
 const applyRouteConversationQuery = () => {
   const raw = route.query.withUserId;
-  const maybeValue = typeof raw === 'string' ? Number.parseInt(raw, 10) : NaN;
+  const maybeValue = typeof raw === "string" ? Number.parseInt(raw, 10) : NaN;
   if (Number.isFinite(maybeValue) && maybeValue > 0) {
     selectedRecipientId.value = maybeValue;
   }
@@ -313,14 +319,14 @@ const teardownSocket = () => {
   }
 
   if (product.value) {
-    socket.emit('leave-product', { productId: product.value.id });
+    socket.emit("leave-product", { productId: product.value.id });
   }
 
-  socket.off('connect');
-  socket.off('message-created');
-  socket.off('offer-updated');
-  socket.off('messages-read');
-  socket.off('presence-updated');
+  socket.off("connect");
+  socket.off("message-created");
+  socket.off("offer-updated");
+  socket.off("messages-read");
+  socket.off("presence-updated");
   socket.disconnect();
   socket = null;
 };
@@ -334,26 +340,26 @@ const setupSocket = () => {
   teardownSocket();
   socket = createRealtimeSocket(auth.token.value);
 
-  socket.on('connect', () => {
+  socket.on("connect", () => {
     if (!product.value || !socket) {
       return;
     }
-    socket.emit('join-product', { productId: product.value.id });
+    socket.emit("join-product", { productId: product.value.id });
   });
 
-  socket.on('message-created', () => {
+  socket.on("message-created", () => {
     void fetchMessages();
   });
 
-  socket.on('offer-updated', () => {
+  socket.on("offer-updated", () => {
     void fetchOffers();
   });
 
-  socket.on('messages-read', () => {
+  socket.on("messages-read", () => {
     void fetchMessages();
   });
 
-  socket.on('presence-updated', (payload: PresenceState) => {
+  socket.on("presence-updated", (payload: PresenceState) => {
     const next = new Set(onlineUserIds.value);
     if (payload.online) {
       next.add(payload.userId);
@@ -364,23 +370,24 @@ const setupSocket = () => {
   });
 };
 
-const handlePayment = async () => {
+const handlePayment = async (amount: number, qty: number, isOffer = false) => {
   if (!product.value) return;
 
-  buying.value = true; // Utilisez votre ref existante pour le loading
+  buying.value = true;
   try {
-    const response = await apiClient.post('/payments/create-checkout-session', {
+    const response = await apiClient.post("/payments/create-checkout-session", {
       productName: product.value.name,
-      amount: product.value.price,
+      amount: amount, // Le prix (soit product.price, soit offer.amount)
       productId: product.value.id,
-      quantity: quantity.value // On envoie la quantité choisie
+      quantity: qty,
+      isOffer: isOffer, // Pour savoir si on traite une offre au retour
     });
-    
+
     if (response.data.url) {
       window.location.href = response.data.url;
     }
   } catch (err) {
-    error.value = "Erreur lors de l'initialisation du paiement Stripe.";
+    error.value = "Erreur lors de l'initialisation du paiement.";
   } finally {
     buying.value = false;
   }
@@ -395,12 +402,12 @@ const buyNow = async () => {
   }
 
   if (!canInteract.value) {
-    error.value = 'Tu ne peux pas acheter ta propre annonce.';
+    error.value = "Tu ne peux pas acheter ta propre annonce.";
     return;
   }
 
   if (!canBuyNow.value) {
-    error.value = 'Cette annonce n est plus disponible a l achat.';
+    error.value = "Cette annonce n est plus disponible a l achat.";
     return;
   }
 
@@ -409,22 +416,24 @@ const buyNow = async () => {
   }
 
   if (quantity.value <= 0) {
-    error.value = 'La quantite doit etre superieure a 0.';
+    error.value = "La quantite doit etre superieure a 0.";
     return;
   }
 
   buying.value = true;
   try {
-    await apiClient.post('/orders', {
+    await apiClient.post("/orders", {
       productId: product.value.id,
       quantity: quantity.value,
     });
 
-    actionMessage.value = 'Commande creee avec succes.';
-    const refreshed = await apiClient.get<Product>(`/products/${route.params.id}`);
+    actionMessage.value = "Commande creee avec succes.";
+    const refreshed = await apiClient.get<Product>(
+      `/products/${route.params.id}`,
+    );
     product.value = refreshed.data;
   } catch (err) {
-    error.value = extractApiMessage(err, 'Achat impossible pour le moment.');
+    error.value = extractApiMessage(err, "Achat impossible pour le moment.");
   } finally {
     buying.value = false;
   }
@@ -439,12 +448,12 @@ const sendOffer = async () => {
   }
 
   if (!canInteract.value) {
-    error.value = 'Tu ne peux pas faire une offre sur ta propre annonce.';
+    error.value = "Tu ne peux pas faire une offre sur ta propre annonce.";
     return;
   }
 
   if (!canSendOffer.value) {
-    error.value = 'Cette annonce n accepte plus d offres.';
+    error.value = "Cette annonce n accepte plus d offres.";
     return;
   }
 
@@ -453,35 +462,42 @@ const sendOffer = async () => {
   }
 
   if (!offerPrice.value || offerPrice.value <= 0) {
-    error.value = 'Entre un montant d offre valide.';
+    error.value = "Entre un montant d offre valide.";
     return;
   }
 
-  if (!product.value || !Number.isInteger(offerQuantity.value) || offerQuantity.value <= 0) {
-    error.value = 'Entre une quantite d offre valide.';
+  if (
+    !product.value ||
+    !Number.isInteger(offerQuantity.value) ||
+    offerQuantity.value <= 0
+  ) {
+    error.value = "Entre une quantite d offre valide.";
     return;
   }
 
   if (offerQuantity.value > product.value.stock) {
-    error.value = 'La quantite demandee depasse le stock disponible.';
+    error.value = "La quantite demandee depasse le stock disponible.";
     return;
   }
 
   sendingOffer.value = true;
   try {
-    await apiClient.post('/offers', {
+    await apiClient.post("/offers", {
       productId: product.value.id,
       amount: offerPrice.value,
       quantity: offerQuantity.value,
       message: offerMessage.value.trim(),
     });
 
-    actionMessage.value = 'Offre envoyee au vendeur.';
-    offerMessage.value = '';
+    actionMessage.value = "Offre envoyee au vendeur.";
+    offerMessage.value = "";
     offerQuantity.value = 1;
     await refreshInteractions();
   } catch (err) {
-    error.value = extractApiMessage(err, 'Envoi de l offre impossible pour le moment.');
+    error.value = extractApiMessage(
+      err,
+      "Envoi de l offre impossible pour le moment.",
+    );
   } finally {
     sendingOffer.value = false;
   }
@@ -489,7 +505,7 @@ const sendOffer = async () => {
 
 const updateOfferStatus = async (
   offerId: number,
-  status: 'accepted' | 'rejected',
+  status: "accepted" | "rejected",
 ) => {
   error.value = null;
   actionMessage.value = null;
@@ -502,12 +518,12 @@ const updateOfferStatus = async (
   try {
     await apiClient.patch(`/offers/${offerId}/status`, { status });
     actionMessage.value =
-      status === 'accepted' ? 'Offre acceptee.' : 'Offre refusee.';
+      status === "accepted" ? "Offre acceptee." : "Offre refusee.";
     await refreshInteractions();
   } catch (err) {
     error.value = extractApiMessage(
       err,
-      'Mise a jour de l offre impossible pour le moment.',
+      "Mise a jour de l offre impossible pour le moment.",
     );
   } finally {
     updatingOfferId.value = null;
@@ -529,33 +545,36 @@ const sendChatMessage = async () => {
   const recipientId = resolvedRecipientId.value;
   if (!recipientId) {
     error.value =
-      'Selectionne un destinataire. Le vendeur doit d abord recevoir au moins un contact.';
+      "Selectionne un destinataire. Le vendeur doit d abord recevoir au moins un contact.";
     return;
   }
 
   if (auth.user.value && recipientId === auth.user.value.id) {
-    error.value = 'Tu ne peux pas te contacter toi-meme sur cette annonce.';
+    error.value = "Tu ne peux pas te contacter toi-meme sur cette annonce.";
     return;
   }
 
   const text = chatInput.value.trim();
   if (!text) {
-    error.value = 'Le message ne peut pas etre vide.';
+    error.value = "Le message ne peut pas etre vide.";
     return;
   }
 
   try {
-    await apiClient.post('/messages', {
+    await apiClient.post("/messages", {
       productId: product.value.id,
       recipientId,
       content: text,
     });
 
-    chatInput.value = '';
-    actionMessage.value = 'Message envoye.';
+    chatInput.value = "";
+    actionMessage.value = "Message envoye.";
     await refreshInteractions();
   } catch (err) {
-    error.value = extractApiMessage(err, 'Envoi du message impossible pour le moment.');
+    error.value = extractApiMessage(
+      err,
+      "Envoi du message impossible pour le moment.",
+    );
   }
 };
 
@@ -564,7 +583,9 @@ onMounted(async () => {
   error.value = null;
 
   try {
-    const response = await apiClient.get<Product>(`/products/${route.params.id}`);
+    const response = await apiClient.get<Product>(
+      `/products/${route.params.id}`,
+    );
     product.value = response.data;
     applyRouteConversationQuery();
     if (product.value?.price) {
@@ -576,7 +597,10 @@ onMounted(async () => {
       setupSocket();
     }
   } catch (err) {
-    error.value = extractApiMessage(err, 'Produit introuvable ou indisponible.');
+    error.value = extractApiMessage(
+      err,
+      "Produit introuvable ou indisponible.",
+    );
   } finally {
     loading.value = false;
   }
@@ -620,11 +644,20 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div v-if="loading" class="app-shell p-10 text-center">Chargement du produit...</div>
+  <div v-if="loading" class="app-shell p-10 text-center">
+    Chargement du produit...
+  </div>
   <div v-else-if="product" class="app-shell container mx-auto p-6">
-    <router-link :to="{ name: 'home' }" class="text-blue-600 font-bold">← Retour</router-link>
-    <div class="glass-card flex flex-col md:flex-row gap-10 mt-6 p-8 rounded-2xl shadow-sm border border-white/70">
-      <img :src="product.imageUrl || 'https://via.placeholder.com/500'" class="w-full md:w-1/2 rounded-xl" />
+    <router-link :to="{ name: 'home' }" class="text-blue-600 font-bold"
+      >← Retour</router-link
+    >
+    <div
+      class="glass-card flex flex-col md:flex-row gap-10 mt-6 p-8 rounded-2xl shadow-sm border border-white/70"
+    >
+      <img
+        :src="product.imageUrl || 'https://via.placeholder.com/500'"
+        class="w-full md:w-1/2 rounded-xl"
+      />
       <div class="w-full">
         <div class="flex flex-wrap items-center gap-3">
           <h1 class="text-4xl font-black">{{ product.name }}</h1>
@@ -646,27 +679,47 @@ onBeforeUnmount(() => {
             v-else
             class="inline-flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 bg-gray-100 text-[11px] font-black uppercase text-gray-600"
           >
-            {{ (product.seller?.displayName || 'V').slice(0, 1) }}
+            {{ (product.seller?.displayName || "V").slice(0, 1) }}
           </span>
-          <p>Vendeur: {{ product.seller?.displayName || 'Compte non renseigne' }}</p>
+          <p>
+            Vendeur: {{ product.seller?.displayName || "Compte non renseigne" }}
+          </p>
         </div>
-        <p class="text-xs mb-2 flex items-center gap-2" :class="sellerOnline ? 'text-green-600' : 'text-gray-400'">
-          <span class="inline-block h-2 w-2 rounded-full" :class="sellerOnline ? 'bg-green-500' : 'bg-gray-300'" />
-          {{ sellerOnline ? 'Vendeur en ligne' : 'Vendeur hors ligne' }}
+        <p
+          class="text-xs mb-2 flex items-center gap-2"
+          :class="sellerOnline ? 'text-green-600' : 'text-gray-400'"
+        >
+          <span
+            class="inline-block h-2 w-2 rounded-full"
+            :class="sellerOnline ? 'bg-green-500' : 'bg-gray-300'"
+          />
+          {{ sellerOnline ? "Vendeur en ligne" : "Vendeur hors ligne" }}
         </p>
         <p class="text-gray-500 my-4">{{ product.description }}</p>
-        <p class="text-xs uppercase tracking-wide text-gray-500">Stock disponible: {{ product.stock }}</p>
+        <p class="text-xs uppercase tracking-wide text-gray-500">
+          Stock disponible: {{ product.stock }}
+        </p>
         <span class="text-3xl font-bold">{{ product.price }}€</span>
 
-        <p v-if="actionMessage" class="mt-4 rounded-lg border border-green-100 bg-green-50 px-3 py-2 text-sm font-semibold text-green-700">
+        <p
+          v-if="actionMessage"
+          class="mt-4 rounded-lg border border-green-100 bg-green-50 px-3 py-2 text-sm font-semibold text-green-700"
+        >
           {{ actionMessage }}
         </p>
-        <p v-if="error" class="mt-4 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+        <p
+          v-if="error"
+          class="mt-4 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700"
+        >
           {{ error }}
         </p>
 
-        <div class="mt-6 grid gap-4 rounded-xl border border-gray-200 bg-white/80 p-4">
-          <h2 class="text-lg font-black text-gray-900">Acheter cette annonce</h2>
+        <div
+          class="mt-6 grid gap-4 rounded-xl border border-gray-200 bg-white/80 p-4"
+        >
+          <h2 class="text-lg font-black text-gray-900">
+            Acheter cette annonce
+          </h2>
 
           <div class="flex flex-col sm:flex-row gap-3 sm:items-center">
             <label class="text-sm font-semibold text-gray-700">Quantite</label>
@@ -680,15 +733,17 @@ onBeforeUnmount(() => {
             <button
               type="button"
               :disabled="buying || !canBuyNow"
-              @click="handlePayment"
+              @click="handlePayment(product.price, quantity)"
               class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:bg-blue-300"
             >
-              {{ buying ? 'Traitement...' : 'Acheter maintenant (Stripe)' }}
+              {{ buying ? "Traitement..." : "Acheter maintenant (Stripe)" }}
             </button>
           </div>
         </div>
 
-        <div class="mt-4 grid gap-4 rounded-xl border border-gray-200 bg-white/80 p-4">
+        <div
+          class="mt-4 grid gap-4 rounded-xl border border-gray-200 bg-white/80 p-4"
+        >
           <h2 class="text-lg font-black text-gray-900">Faire une offre</h2>
           <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-3">
             <input
@@ -721,14 +776,16 @@ onBeforeUnmount(() => {
             @click="sendOffer"
             class="w-fit rounded-lg bg-amber-500 px-4 py-2 text-sm font-bold text-white hover:bg-amber-600 disabled:bg-amber-300"
           >
-            {{ sendingOffer ? 'Envoi...' : 'Envoyer mon offre' }}
+            {{ sendingOffer ? "Envoi..." : "Envoyer mon offre" }}
           </button>
 
           <div v-if="auth.isAuthenticated" class="space-y-2">
             <h3 class="text-sm font-black text-gray-800">
-              {{ isSellerView ? 'Offres recues' : 'Mes offres' }}
+              {{ isSellerView ? "Offres recues" : "Mes offres" }}
             </h3>
-            <p v-if="offers.length === 0" class="text-sm text-gray-500">Aucune offre pour l instant.</p>
+            <p v-if="offers.length === 0" class="text-sm text-gray-500">
+              Aucune offre pour l instant.
+            </p>
             <ul v-else class="space-y-2 max-h-44 overflow-auto pr-1">
               <li
                 v-for="offer in offers"
@@ -737,13 +794,41 @@ onBeforeUnmount(() => {
               >
                 <div class="flex items-center justify-between gap-3">
                   <p class="text-sm font-semibold text-gray-800">
-                    {{ Number(offer.amount).toFixed(2) }} EUR x {{ offer.quantity }} · {{ offer.status }}
+                    {{ Number(offer.amount).toFixed(2) }} EUR x
+                    {{ offer.quantity }} · {{ offer.status }}
                   </p>
-                  <p class="text-xs text-gray-400">{{ new Date(offer.createdAt).toLocaleString() }}</p>
+                  <p class="text-xs text-gray-400">
+                    {{ new Date(offer.createdAt).toLocaleString() }}
+                  </p>
                 </div>
-                <p class="mt-1 text-sm text-gray-600">{{ offer.message || 'Sans message' }}</p>
-                <p v-if="offer.buyer" class="mt-1 text-xs text-gray-500">Acheteur: {{ offer.buyer.displayName }}</p>
+                <p class="mt-1 text-sm text-gray-600">
+                  {{ offer.message || "Sans message" }}
+                </p>
+                <p v-if="offer.buyer" class="mt-1 text-xs text-gray-500">
+                  Acheteur: {{ offer.buyer.displayName }}
+                </p>
 
+                <div
+                  v-if="
+                    offer.status === 'accepted' &&
+                    offer.buyerId === currentUser?.id
+                  "
+                  class="mt-3"
+                >
+                  <button
+                    type="button"
+                    :disabled="buying"
+                    @click="handlePayment(offer.amount, offer.quantity)"
+                    class="w-full rounded-lg bg-green-600 py-2 text-xs font-bold text-white hover:bg-green-700 transition-colors shadow-md flex items-center justify-center gap-2"
+                  >
+                    <span v-if="buying">Redirection...</span>
+                    <span v-else
+                      >💳 Payer mon offre ({{
+                        (offer.amount * offer.quantity).toFixed(2)
+                      }}€)</span
+                    >
+                  </button>
+                </div>
                 <div
                   v-if="isSellerView && offer.status === 'pending'"
                   class="mt-2 flex gap-2"
@@ -752,17 +837,9 @@ onBeforeUnmount(() => {
                     type="button"
                     :disabled="updatingOfferId === offer.id"
                     @click="updateOfferStatus(offer.id, 'accepted')"
-                    class="rounded-lg bg-green-600 px-3 py-1 text-xs font-bold text-white hover:bg-green-700 disabled:bg-green-300"
+                    class="rounded-lg bg-green-600 px-3 py-1 text-xs font-bold text-white hover:bg-green-700"
                   >
                     Accepter
-                  </button>
-                  <button
-                    type="button"
-                    :disabled="updatingOfferId === offer.id"
-                    @click="updateOfferStatus(offer.id, 'rejected')"
-                    class="rounded-lg bg-red-600 px-3 py-1 text-xs font-bold text-white hover:bg-red-700 disabled:bg-red-300"
-                  >
-                    Refuser
                   </button>
                 </div>
               </li>
@@ -770,12 +847,21 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div class="mt-4 grid gap-3 rounded-xl border border-gray-200 bg-white/80 p-4">
+        <div
+          class="mt-4 grid gap-3 rounded-xl border border-gray-200 bg-white/80 p-4"
+        >
           <h2 class="text-lg font-black text-gray-900">Messagerie interne</h2>
-          <p class="text-xs text-gray-500">Temps reel instantane via WebSocket.</p>
+          <p class="text-xs text-gray-500">
+            Temps reel instantane via WebSocket.
+          </p>
 
-          <div v-if="isSellerView && recipientOptions.length > 0" class="space-y-1">
-            <label class="text-xs font-bold uppercase text-gray-500">Conversation avec</label>
+          <div
+            v-if="isSellerView && recipientOptions.length > 0"
+            class="space-y-1"
+          >
+            <label class="text-xs font-bold uppercase text-gray-500"
+              >Conversation avec</label
+            >
             <select
               v-model.number="selectedRecipientId"
               class="w-full rounded-lg border p-2 bg-gray-50 text-sm"
@@ -795,7 +881,11 @@ onBeforeUnmount(() => {
               v-model="chatInput"
               type="text"
               class="flex-1 rounded-lg border p-2 bg-gray-50"
-              :placeholder="isSellerView ? 'Ecrire un message a cet acheteur...' : 'Ecrire un message au vendeur...'"
+              :placeholder="
+                isSellerView
+                  ? 'Ecrire un message a cet acheteur...'
+                  : 'Ecrire un message au vendeur...'
+              "
             />
             <button
               type="button"
@@ -810,7 +900,10 @@ onBeforeUnmount(() => {
             Chargement des interactions...
           </div>
 
-          <div v-else-if="sortedMessages.length === 0" class="text-sm text-gray-500">
+          <div
+            v-else-if="sortedMessages.length === 0"
+            class="text-sm text-gray-500"
+          >
             Aucun message pour l'instant.
           </div>
 
@@ -831,7 +924,7 @@ onBeforeUnmount(() => {
                   class="font-semibold"
                   :class="msg.readAt ? 'text-green-600' : 'text-gray-400'"
                 >
-                  {{ msg.readAt ? 'Vu' : 'Envoye' }}
+                  {{ msg.readAt ? "Vu" : "Envoye" }}
                 </span>
               </p>
             </li>
@@ -840,5 +933,7 @@ onBeforeUnmount(() => {
       </div>
     </div>
   </div>
-  <div v-else class="app-shell p-10 text-center text-red-600">{{ error || 'Annonce indisponible.' }}</div>
+  <div v-else class="app-shell p-10 text-center text-red-600">
+    {{ error || "Annonce indisponible." }}
+  </div>
 </template>
