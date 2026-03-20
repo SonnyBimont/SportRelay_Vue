@@ -2,7 +2,30 @@
 import type { Product } from '../types/product';
 import { getCategoryBadgeClass } from '../utils/categoryBadge';
 
-defineProps<{ product: Product }>();
+const props = withDefaults(
+  defineProps<{
+    product: Product;
+    isFavorite?: boolean;
+    favoriteLoading?: boolean;
+    canFavorite?: boolean;
+  }>(),
+  {
+    isFavorite: false,
+    favoriteLoading: false,
+    canFavorite: false,
+  },
+);
+
+const emit = defineEmits<{
+  (event: 'toggle-favorite', productId: number): void;
+}>();
+
+const onToggleFavorite = () => {
+  if (!props.canFavorite || props.favoriteLoading) {
+    return;
+  }
+  emit('toggle-favorite', props.product.id);
+};
 </script>
 
 <template>
@@ -14,6 +37,21 @@ defineProps<{ product: Product }>();
     >
       Vendu
     </span>
+    <button
+      v-if="canFavorite"
+      type="button"
+      class="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full border bg-white/95 text-sm font-black shadow-sm transition"
+      :class="
+        isFavorite
+          ? 'border-rose-200 text-rose-600 hover:bg-rose-50'
+          : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+      "
+      :disabled="favoriteLoading"
+      @click.stop.prevent="onToggleFavorite"
+      :title="isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'"
+    >
+      {{ isFavorite ? '♥' : '♡' }}
+    </button>
     <div class="p-4">
       <div class="flex items-center justify-between gap-2">
         <h3 class="font-bold text-lg truncate">{{ product.name }}</h3>

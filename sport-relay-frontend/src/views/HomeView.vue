@@ -59,6 +59,10 @@ interface ConnectionNotification {
   withUserId?: number;
 }
 
+interface FavoriteIdsResponse {
+  productIds: number[];
+}
+
 const products = ref<Product[]>([]);
 const selectedCategory = ref('Tous');
 const selectedSearchCategory = ref(ALL_CATEGORIES_LABEL);
@@ -69,6 +73,8 @@ const isModalOpen = ref(false);
 const successToast = ref<string | null>(null);
 const connectionNotifications = ref<ConnectionNotification[]>([]);
 const dismissedNotificationIds = ref<Set<string>>(new Set());
+const favoriteIds = ref<Set<number>>(new Set());
+const favoriteLoadingIds = ref<Set<number>>(new Set());
 const auth = useAuthStore();
 const router = useRouter();
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -218,7 +224,7 @@ const headerCategories = computed(() => ['Tous', ...trendingCategories.value]);
 
 const filteredProducts = computed(() => {
   const normalizedQuery = searchQuery.value.trim().toLowerCase();
-  return products.value.filter(product => {
+  const filtered = products.value.filter((product) => {
     const matchHeaderCategory =
       selectedCategory.value === 'Tous' || product.category === selectedCategory.value;
     const matchFilterCategory =
@@ -227,6 +233,16 @@ const filteredProducts = computed(() => {
     const searchable = `${product.name} ${product.description} ${product.category}`.toLowerCase();
     const matchSearch = normalizedQuery.length === 0 || searchable.includes(normalizedQuery);
     return matchHeaderCategory && matchFilterCategory && matchSearch;
+  });
+
+  if (!auth.isAuthenticated.value || favoriteIds.value.size === 0) {
+    return filtered;
+  }
+
+  return [...filtered].sort((a, b) => {
+    const aFav = favoriteIds.value.has(a.id) ? 1 : 0;
+    const bFav = favoriteIds.value.has(b.id) ? 1 : 0;
+    return bFav - aFav;
   });
 });
 
@@ -254,6 +270,71 @@ const fetchProducts = async () => {
     console.error(err);
   } finally {
     loading.value = false;
+  }
+};
+
+const fetchFavorites = async () => {
+  if (!auth.isAuthenticated.value) {
+    favoriteIds.value = new Set();
+    return;
+  }
+
+  try {
+    const response = await apiClient.get<FavoriteIdsResponse>('/favorites/my');
+    favoriteIds.value = new Set(
+      response.data.productIds.filter(
+        (value) => Number.isFinite(value) && value > 0,
+      ),
+    );
+  } catch {
+    favoriteIds.value = new Set();
+  }
+};
+
+const isProductFavorite = (productId: number) => {
+  return favoriteIds.value.has(productId);
+};
+
+const isFavoriteLoading = (productId: number) => {
+  return favoriteLoadingIds.value.has(productId);
+};
+
+const toggleFavorite = async (productId: number) => {
+  if (!auth.isAuthenticated.value) {
+    void router.push({ name: 'auth', query: { redirect: '/home' } });
+    return;
+  }
+
+  if (favoriteLoadingIds.value.has(productId)) {
+    return;
+  }
+
+  const nextLoading = new Set(favoriteLoadingIds.value);
+  nextLoading.add(productId);
+  favoriteLoadingIds.value = nextLoading;
+
+  const currentlyFavorite = favoriteIds.value.has(productId);
+
+  try {
+    if (currentlyFavorite) {
+      await apiClient.delete(`/favorites/${productId}`);
+      const next = new Set(favoriteIds.value);
+      next.delete(productId);
+      favoriteIds.value = next;
+      showSuccessToast('Retire des favoris.');
+    } else {
+      await apiClient.post(`/favorites/${productId}`);
+      const next = new Set(favoriteIds.value);
+      next.add(productId);
+      favoriteIds.value = next;
+      showSuccessToast('Ajoute aux favoris.');
+    }
+  } catch {
+    showSuccessToast('Action favoris impossible pour le moment.');
+  } finally {
+    const endLoading = new Set(favoriteLoadingIds.value);
+    endLoading.delete(productId);
+    favoriteLoadingIds.value = endLoading;
   }
 };
 
@@ -430,6 +511,7 @@ const handleProductAdded = async (payload: { name: string }) => {
 onMounted(() => {
   loadDismissedNotifications();
   void fetchProducts();
+  void fetchFavorites();
   void fetchConnectionNotifications();
 });
 
@@ -448,9 +530,12 @@ watch(
     if (!isAuthenticated) {
       dismissedNotificationIds.value = new Set();
       connectionNotifications.value = [];
+      favoriteIds.value = new Set();
+      favoriteLoadingIds.value = new Set();
       return;
     }
     loadDismissedNotifications();
+    void fetchFavorites();
     void fetchConnectionNotifications();
   },
 );
@@ -628,7 +713,11 @@ onBeforeUnmount(() => {
           <ProductCard 
             v-for="product in filteredProducts" 
             :key="product.id" 
-            :product="product" 
+            :product="product"
+            :can-favorite="auth.isAuthenticated.value"
+            :is-favorite="isProductFavorite(product.id)"
+            :favorite-loading="isFavoriteLoading(product.id)"
+            @toggle-favorite="toggleFavorite"
           />
         </div>
         
