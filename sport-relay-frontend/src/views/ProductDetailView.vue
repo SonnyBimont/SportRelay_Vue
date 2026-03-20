@@ -47,6 +47,10 @@ interface PresenceState {
   online: boolean;
 }
 
+interface FavoriteIdsResponse {
+  productIds: number[];
+}
+
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
@@ -68,6 +72,8 @@ const messages = ref<MessageItem[]>([]);
 const loadingInteractions = ref(false);
 const selectedRecipientId = ref<number | null>(null);
 const onlineUserIds = ref<Set<number>>(new Set());
+const favoriteLoading = ref(false);
+const isFavorite = ref(false);
 let socket: Socket | null = null;
 
 const canInteract = computed(() => {
@@ -191,6 +197,47 @@ const requireAuthOrRedirect = () => {
 const fetchProduct = async () => {
   const response = await apiClient.get<Product>(`/products/${route.params.id}`);
   product.value = response.data;
+};
+
+const fetchFavoriteState = async () => {
+  if (!auth.isAuthenticated.value || !product.value) {
+    isFavorite.value = false;
+    return;
+  }
+
+  try {
+    const response = await apiClient.get<FavoriteIdsResponse>('/favorites/my');
+    isFavorite.value = response.data.productIds.includes(product.value.id);
+  } catch {
+    isFavorite.value = false;
+  }
+};
+
+const toggleFavorite = async () => {
+  if (!product.value) {
+    return;
+  }
+
+  if (!requireAuthOrRedirect()) {
+    return;
+  }
+
+  favoriteLoading.value = true;
+  try {
+    if (isFavorite.value) {
+      await apiClient.delete(`/favorites/${product.value.id}`);
+      isFavorite.value = false;
+      actionMessage.value = 'Retire des favoris.';
+    } else {
+      await apiClient.post(`/favorites/${product.value.id}`);
+      isFavorite.value = true;
+      actionMessage.value = 'Ajoute aux favoris.';
+    }
+  } catch {
+    error.value = 'Impossible de mettre a jour les favoris pour le moment.';
+  } finally {
+    favoriteLoading.value = false;
+  }
 };
 
 const fetchOffers = async () => {
@@ -565,6 +612,7 @@ onMounted(async () => {
     }
 
     if (auth.isAuthenticated.value) {
+      await fetchFavoriteState();
       await refreshInteractions();
       setupSocket();
     }
@@ -582,11 +630,13 @@ watch(
   () => auth.isAuthenticated.value,
   (isAuthenticated) => {
     if (isAuthenticated) {
+      void fetchFavoriteState();
       void refreshInteractions();
       setupSocket();
       return;
     }
 
+    isFavorite.value = false;
     offers.value = [];
     messages.value = [];
     teardownSocket();
@@ -633,6 +683,21 @@ onBeforeUnmount(() => {
       <div class="w-full">
         <div class="flex flex-wrap items-center gap-3">
           <h1 class="text-4xl font-black">{{ product.name }}</h1>
+          <button
+            v-if="auth.isAuthenticated"
+            type="button"
+            class="inline-flex h-9 w-9 items-center justify-center rounded-full border bg-white/90 text-lg font-black shadow-sm transition"
+            :class="
+              isFavorite
+                ? 'border-rose-200 text-rose-600 hover:bg-rose-50'
+                : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+            "
+            :disabled="favoriteLoading"
+            @click="toggleFavorite"
+            :title="isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'"
+          >
+            {{ isFavorite ? '♥' : '♡' }}
+          </button>
           <span
             class="rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide"
             :class="getCategoryBadgeClass(product.category)"

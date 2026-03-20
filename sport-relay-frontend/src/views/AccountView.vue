@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { apiClient } from '../services/api';
+import ProductCard from '../components/ProductCard.vue';
 import { setStoredUser } from '../services/authStorage';
 import { useAuthStore } from '../stores/auth';
 import type { AuthUser } from '../types/auth';
 import type { Order } from '../types/order';
+import type { Product } from '../types/product';
 
 const auth = useAuthStore();
 const loading = ref(true);
@@ -13,6 +15,7 @@ const error = ref<string | null>(null);
 const profile = ref<AuthUser | null>(null);
 const myOrders = ref<Order[]>([]);
 const sales = ref<Order[]>([]);
+const favoriteProducts = ref<Product[]>([]);
 const profileSaving = ref(false);
 const passwordSaving = ref(false);
 const avatarSaving = ref(false);
@@ -32,6 +35,7 @@ const passwordForm = ref({
 });
 
 const canSeeSales = computed(() => auth.canSell.value);
+const activeTab = ref<'profile' | 'favorites' | 'orders' | 'sales'>('profile');
 
 const totalPurchasesAmount = computed(() => {
   return myOrders.value.reduce((sum, order) => sum + Number(order.totalPrice || 0), 0);
@@ -52,13 +56,17 @@ const fetchData = async () => {
   try {
     const profilePromise = apiClient.get<AuthUser>('/auth/me');
     const myOrdersPromise = apiClient.get<Order[]>('/orders/my');
+    const favoritesPromise = apiClient
+      .get<Product[]>('/favorites/my-products')
+      .catch(() => ({ data: [] as Product[] }));
     const salesPromise = canSeeSales.value
       ? apiClient.get<Order[]>('/orders/sales')
       : Promise.resolve({ data: [] as Order[] });
 
-    const [profileRes, myOrdersRes, salesRes] = await Promise.all([
+    const [profileRes, myOrdersRes, favoritesRes, salesRes] = await Promise.all([
       profilePromise,
       myOrdersPromise,
+      favoritesPromise,
       salesPromise,
     ]);
 
@@ -66,6 +74,7 @@ const fetchData = async () => {
     profileForm.value.displayName = profileRes.data.displayName;
     profileForm.value.email = profileRes.data.email;
     myOrders.value = myOrdersRes.data;
+    favoriteProducts.value = favoritesRes.data;
     sales.value = salesRes.data;
   } catch {
     error.value = 'Impossible de charger ton compte pour le moment.';
@@ -184,7 +193,53 @@ onMounted(() => {
       </div>
 
       <template v-else>
-        <section class="glass-card border rounded-2xl p-6">
+        <section class="glass-card border rounded-2xl p-4">
+          <div class="flex flex-wrap gap-2">
+            <button
+              type="button"
+              @click="activeTab = 'profile'"
+              :class="[
+                'rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wide transition',
+                activeTab === 'profile' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              ]"
+            >
+              Profil
+            </button>
+            <button
+              type="button"
+              @click="activeTab = 'favorites'"
+              :class="[
+                'rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wide transition',
+                activeTab === 'favorites' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              ]"
+            >
+              Mes favoris
+            </button>
+            <button
+              type="button"
+              @click="activeTab = 'orders'"
+              :class="[
+                'rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wide transition',
+                activeTab === 'orders' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              ]"
+            >
+              Mes achats
+            </button>
+            <button
+              v-if="canSeeSales"
+              type="button"
+              @click="activeTab = 'sales'"
+              :class="[
+                'rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wide transition',
+                activeTab === 'sales' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              ]"
+            >
+              Mes ventes
+            </button>
+          </div>
+        </section>
+
+        <section v-if="activeTab === 'profile'" class="glass-card border rounded-2xl p-6">
           <h2 class="text-xl font-bold text-gray-900">Profil</h2>
           <div class="mt-4 flex items-center gap-4">
             <img
@@ -261,7 +316,28 @@ onMounted(() => {
           </form>
         </section>
 
-        <section class="glass-card border rounded-2xl p-6">
+        <section v-if="activeTab === 'favorites'" class="glass-card border rounded-2xl p-6">
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="text-xl font-bold text-gray-900">Mes favoris</h2>
+            <p class="text-sm font-semibold text-gray-600">
+              Total: {{ favoriteProducts.length }}
+            </p>
+          </div>
+
+          <div v-if="favoriteProducts.length === 0" class="text-sm text-gray-500 mt-4">
+            Aucun favori pour le moment.
+          </div>
+
+          <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+            <ProductCard
+              v-for="product in favoriteProducts"
+              :key="`favorite-${product.id}`"
+              :product="product"
+            />
+          </div>
+        </section>
+
+        <section v-if="activeTab === 'orders'" class="glass-card border rounded-2xl p-6">
           <div class="flex items-center justify-between gap-3">
             <h2 class="text-xl font-bold text-gray-900">Historique achats</h2>
             <p class="text-sm font-semibold text-gray-600">
@@ -301,7 +377,7 @@ onMounted(() => {
           </div>
         </section>
 
-        <section v-if="canSeeSales" class="glass-card border rounded-2xl p-6">
+        <section v-if="canSeeSales && activeTab === 'sales'" class="glass-card border rounded-2xl p-6">
           <div class="flex items-center justify-between gap-3">
             <h2 class="text-xl font-bold text-gray-900">Historique ventes</h2>
             <p class="text-sm font-semibold text-gray-600">

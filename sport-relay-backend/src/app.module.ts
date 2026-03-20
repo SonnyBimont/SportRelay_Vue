@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { AuthModule } from './auth/auth.module';
 import { DatabaseSchemaService } from './database/database-schema.service';
+import { Favorite } from './favorites/entities/favorite.entity';
+import { FavoritesModule } from './favorites/favorites.module';
 import { MessagesModule } from './messages/messages.module';
 import { Offer } from './offers/entities/offer.entity';
 import { OffersModule } from './offers/offers.module';
@@ -32,7 +34,7 @@ import { ConfigModule } from '@nestjs/config';
           return {
             dialect: 'sqlite' as const,
             storage: process.env.DB_STORAGE ?? 'dev.sqlite',
-            models: [User, Product, Order, Offer, ChatMessage],
+            models: [User, Product, Order, Offer, ChatMessage, Favorite],
             autoLoadModels: true,
             synchronize: true,
             logging: false,
@@ -46,7 +48,7 @@ import { ConfigModule } from '@nestjs/config';
           username: process.env.DB_USER ?? 'postgres',
           password: process.env.DB_PASSWORD ?? 'root',
           database: process.env.DB_NAME ?? 'sport_relay_db',
-          models: [User, Product, Order, Offer, ChatMessage],
+          models: [User, Product, Order, Offer, ChatMessage, Favorite],
           autoLoadModels: true,
           synchronize: true,
         };
@@ -58,6 +60,7 @@ import { ConfigModule } from '@nestjs/config';
     OrdersModule,
     OffersModule,
     MessagesModule,
+    FavoritesModule,
     RealtimeModule,
     PaymentsModule,
   ],
