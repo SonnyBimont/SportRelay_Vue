@@ -5,6 +5,8 @@ import {
   Get,
   Patch,
   Post,
+  Req,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -13,6 +15,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { existsSync, mkdirSync } from 'fs';
 import { extname, join } from 'path';
+import type { Request, Response } from 'express';
 import { UsersService } from '../users/users.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -20,12 +23,26 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { AuthService } from './auth.service';
 import type { JwtUser } from './interfaces/jwt-user.interface';
 
 const uploadsDir = join(__dirname, '..', '..', 'uploads');
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const ACCESS_TOKEN_COOKIE_NAME = 'sr_access_token';
+
+const resolveClientIp = (req: Request): string => {
+  const headerValue = req.headers['x-forwarded-for'];
+  if (typeof headerValue === 'string' && headerValue.length > 0) {
+    return headerValue.split(',')[0].trim();
+  }
+  if (Array.isArray(headerValue) && headerValue.length > 0) {
+    return headerValue[0];
+  }
+  return req.ip ?? 'unknown';
+};
 
 @Controller('auth')
 export class AuthController {
@@ -35,13 +52,40 @@ export class AuthController {
   ) {}
 
   @Post('register')
-  register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  async register(
+    @Body() dto: RegisterDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const payload = await this.authService.register(dto);
+    const rememberMe = dto.rememberMe === true;
+
+    res.cookie(ACCESS_TOKEN_COOKIE_NAME, payload.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: rememberMe ? 7 * 24 * 60 * 60 * 1000 : undefined,
+    });
+
+    return payload;
   }
 
   @Post('login')
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  async login(
+    @Body() dto: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const payload = await this.authService.login(dto, resolveClientIp(req));
+    const rememberMe = dto.rememberMe === true;
+
+    res.cookie(ACCESS_TOKEN_COOKIE_NAME, payload.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: rememberMe ? 7 * 24 * 60 * 60 * 1000 : undefined,
+    });
+
+    return payload;
   }
 
   @Post('fake-seed')
@@ -49,10 +93,32 @@ export class AuthController {
     return this.authService.fakeSeed();
   }
 
+  @Post('forgot-password')
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.requestPasswordReset(dto);
+  }
+
+  @Post('reset-password')
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get('me')
   me(@CurrentUser() user: JwtUser) {
     return this.usersService.findById(user.sub);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('logout')
+  logout(@Res({ passthrough: true }) res: Response) {
+    res.clearCookie(ACCESS_TOKEN_COOKIE_NAME, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    });
+
+    return { message: 'Deconnexion reussie.' };
   }
 
   @UseGuards(JwtAuthGuard)

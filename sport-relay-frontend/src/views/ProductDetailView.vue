@@ -384,13 +384,13 @@ const teardownSocket = () => {
 };
 
 const setupSocket = () => {
-  if (!auth.isAuthenticated.value || !auth.token.value || !product.value) {
+  if (!auth.isAuthenticated.value || !product.value) {
     teardownSocket();
     return;
   }
 
   teardownSocket();
-  socket = createRealtimeSocket(auth.token.value);
+  socket = createRealtimeSocket();
 
   socket.on("connect", () => {
     if (!product.value || !socket) {

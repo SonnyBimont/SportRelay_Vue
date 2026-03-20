@@ -1,18 +1,11 @@
 import axios from 'axios';
-import { clearStoredSession, getStoredToken } from './authStorage';
+import { clearStoredSession } from './authStorage';
 
 // Créer une instance d'axios avec une configuration de base
 // proxy defini dans vite.config.ts redirige les requetes de /api vers http://localhost:3000 (backend)
 export const apiClient = axios.create({
   baseURL: '/api',
-});
-
-apiClient.interceptors.request.use((config) => {
-  const token = getStoredToken();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
+  withCredentials: true,
 });
 
 apiClient.interceptors.response.use(

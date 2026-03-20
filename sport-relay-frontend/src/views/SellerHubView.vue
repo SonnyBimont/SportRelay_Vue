@@ -326,13 +326,13 @@ const teardownSocket = () => {
 };
 
 const setupSocket = () => {
-  if (!auth.isAuthenticated.value || !auth.token.value || !auth.canSell.value) {
+  if (!auth.isAuthenticated.value || !auth.canSell.value) {
     teardownSocket();
     return;
   }
 
   teardownSocket();
-  socket = createRealtimeSocket(auth.token.value);
+  socket = createRealtimeSocket();
   socket.on('conversation-list-updated', () => {
     void fetchConversations().then(() => fetchPresence());
   });
