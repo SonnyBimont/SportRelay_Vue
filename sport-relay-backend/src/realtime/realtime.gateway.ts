@@ -36,10 +36,37 @@ export class RealtimeGateway
     return `product:${productId}`;
   }
 
+  private readCookie(cookieHeader: string | undefined, key: string): string | null {
+    if (!cookieHeader) {
+      return null;
+    }
+
+    const chunks = cookieHeader.split(';');
+    for (const chunk of chunks) {
+      const trimmed = chunk.trim();
+      if (!trimmed.startsWith(`${key}=`)) {
+        continue;
+      }
+
+      const value = trimmed.slice(key.length + 1).trim();
+      return value.length > 0 ? decodeURIComponent(value) : null;
+    }
+
+    return null;
+  }
+
   private extractToken(client: Socket): string | null {
     const authToken = client.handshake.auth?.token as unknown;
     if (typeof authToken === 'string' && authToken.length > 0) {
       return authToken;
+    }
+
+    const cookieHeader = client.handshake.headers.cookie;
+    if (typeof cookieHeader === 'string') {
+      const cookieToken = this.readCookie(cookieHeader, 'sr_access_token');
+      if (cookieToken) {
+        return cookieToken;
+      }
     }
 
     const authorization = client.handshake.headers.authorization;

@@ -2,29 +2,24 @@ import { computed, ref } from 'vue';
 import { apiClient } from '../services/api';
 import {
   clearStoredSession,
-  getStoredToken,
   getStoredUser,
-  setStoredToken,
   setStoredUser,
 } from '../services/authStorage';
 import type { AuthResponse, AuthUser, UserRole } from '../types/auth';
 
-const token = ref<string | null>(getStoredToken());
 const user = ref<AuthUser | null>(getStoredUser());
 
-const isAuthenticated = computed(() => Boolean(token.value && user.value));
+const isAuthenticated = computed(() => Boolean(user.value));
 const role = computed<UserRole | null>(() => user.value?.role ?? null);
 const canSell = computed(() => role.value === 'seller' || role.value === 'admin');
 
 const setSession = (payload: AuthResponse, rememberMe: boolean) => {
-  token.value = payload.accessToken;
   user.value = payload.user;
-  setStoredToken(payload.accessToken, rememberMe);
+  localStorage.setItem('sportrelay_persist', rememberMe ? '1' : '0');
   setStoredUser(payload.user);
 };
 
 const clearSession = () => {
-  token.value = null;
   user.value = null;
   clearStoredSession();
 };
@@ -41,6 +36,7 @@ const register = async (payload: {
     password: payload.password,
     displayName: payload.displayName,
     role: payload.role,
+    rememberMe: payload.rememberMe,
   });
   setSession(response.data, payload.rememberMe);
 };
@@ -53,15 +49,12 @@ const login = async (payload: {
   const response = await apiClient.post<AuthResponse>('/auth/login', {
     email: payload.email,
     password: payload.password,
+    rememberMe: payload.rememberMe,
   });
   setSession(response.data, payload.rememberMe);
 };
 
 const restoreSession = async () => {
-  if (!token.value) {
-    return;
-  }
-
   try {
     const response = await apiClient.get<AuthUser>('/auth/me');
     user.value = response.data;
@@ -71,13 +64,17 @@ const restoreSession = async () => {
   }
 };
 
-const logout = () => {
+const logout = async () => {
+  try {
+    await apiClient.post('/auth/logout');
+  } catch {
+    // On force quand meme la deconnexion locale si l'appel echoue.
+  }
   clearSession();
 };
 
 export const useAuthStore = () => {
   return {
-    token,
     user,
     role,
     canSell,
