@@ -5,7 +5,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { Order } from '../orders/entities/order.entity';
 import { Product } from '../products/entities/product.entity';
 import { RealtimeService } from '../realtime/realtime.service';
 import { UserRole } from '../users/entities/user.entity';
@@ -20,8 +19,6 @@ export class OffersService {
     private readonly offerModel: typeof Offer,
     @InjectModel(Product)
     private readonly productModel: typeof Product,
-    @InjectModel(Order)
-    private readonly orderModel: typeof Order,
     private readonly realtimeService: RealtimeService,
   ) {}
 
@@ -199,6 +196,12 @@ export class OffersService {
       );
     }
 
+    if (offer.status === 'paid') {
+      throw new BadRequestException(
+        'Une offre deja payee ne peut plus etre modifiee.',
+      );
+    }
+
     if (nextStatus === 'accepted') {
       const offerQuantity = Number(offer.quantity ?? 1);
       if (offerQuantity <= 0) {
@@ -219,30 +222,8 @@ export class OffersService {
 
     if (nextStatus === 'accepted' && previousStatus !== 'accepted') {
       const acceptedQuantity = Number(offer.quantity ?? 1);
-      product.stock = Math.max(0, Number(product.stock) - acceptedQuantity);
-      await product.save();
-
-      await this.orderModel.create({
-        buyerId: Number(offer.buyerId),
-        productId: Number(product.id),
-        quantity: acceptedQuantity,
-        totalPrice: Number(offer.amount) * acceptedQuantity,
-        status: 'paid',
-      });
-
-      if (Number(product.stock) <= 0) {
-        await this.offerModel.update(
-          {
-            status: 'rejected',
-            sellerResponse: 'Stock epuise apres acceptation d une autre offre.',
-          },
-          {
-            where: {
-              productId: Number(product.id),
-              status: 'pending',
-            },
-          },
-        );
+      if (Number(product.stock) < acceptedQuantity) {
+        throw new BadRequestException('Le produit n est plus en stock.');
       }
     }
 

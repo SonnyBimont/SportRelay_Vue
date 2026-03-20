@@ -15,11 +15,14 @@ import { ChatMessage } from './messages/entities/chat-message.entity';
 import { UsersModule } from './users/users.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { PaymentsModule } from './payments/payments.module';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   controllers: [AppController],
   providers: [AppService, DatabaseSchemaService],
   imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
     SequelizeModule.forRootAsync({
       useFactory: () => {
         const useSqliteFallback =
@@ -56,6 +59,7 @@ import { AppService } from './app.service';
     OffersModule,
     MessagesModule,
     RealtimeModule,
+    PaymentsModule,
   ],
 })
 export class AppModule {}

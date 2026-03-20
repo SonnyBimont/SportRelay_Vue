@@ -55,7 +55,10 @@ export class ProductsService {
     });
   }
 
-  async findMine(sellerId: number, options: FindMineOptions): Promise<FindMineResult> {
+  async findMine(
+    sellerId: number,
+    options: FindMineOptions,
+  ): Promise<FindMineResult> {
     const page = Number.isFinite(options.page) ? options.page : 1;
     const limit = Number.isFinite(options.limit) ? options.limit : 10;
     const safePage = page > 0 ? page : 1;
@@ -157,7 +160,10 @@ export class ProductsService {
   }
 
   // Supprimer
-  async remove(id: number, user?: { id: number; role: UserRole }): Promise<void> {
+  async remove(
+    id: number,
+    user?: { id: number; role: UserRole },
+  ): Promise<void> {
     const product = await this.findOne(id);
 
     if (
@@ -172,5 +178,25 @@ export class ProductsService {
     }
 
     await product.destroy();
+  }
+
+  async reduceStock(productId: number, quantity: number) {
+    const product = await this.productModel.findByPk(productId);
+
+    if (!product) {
+      throw new Error(`Produit ${productId} introuvable`);
+    }
+
+    const newStock = product.stock - quantity;
+
+    if (newStock < 0) {
+      throw new Error(`Stock insuffisant pour le produit ${productId}`);
+    }
+
+    // Mise à jour en base de données
+    await product.update({ stock: newStock });
+
+    console.log(`Stock mis à jour pour ${product.name}: ${newStock} restants.`);
+    return product;
   }
 }

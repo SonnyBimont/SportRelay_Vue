@@ -51,6 +51,13 @@ export class Order extends Model {
   })
   declare status: OrderStatus;
 
+  @Column({
+    type: DataType.STRING,
+    allowNull: true,
+    unique: true,
+  })
+  declare stripeSessionId: string | null;
+
   @BelongsTo(() => User, { foreignKey: 'buyerId', as: 'buyer' })
   declare buyer: User;
 
