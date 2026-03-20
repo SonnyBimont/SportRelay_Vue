@@ -1,11 +1,30 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import { useRouter } from 'vue-router';
+import { apiClient } from '../services/api';
 
 const router = useRouter();
+const route = useRoute();
 const countdown = ref(5);
+const notice = ref<string | null>(null);
 
 onMounted(() => {
+  const sessionIdRaw = route.query.session_id;
+  const sessionId = typeof sessionIdRaw === 'string' ? sessionIdRaw.trim() : '';
+
+  if (sessionId.startsWith('cs_')) {
+    void apiClient
+      .post('/payments/confirm-session', { sessionId })
+      .then(() => {
+        notice.value = 'Paiement confirme et commande finalisee.';
+      })
+      .catch(() => {
+        notice.value =
+          'Paiement recu. La synchronisation peut prendre quelques secondes.';
+      });
+  }
+
   // Petit compte à rebours avant redirection automatique vers l'accueil
   const timer = setInterval(() => {
     countdown.value--;
@@ -34,6 +53,9 @@ onMounted(() => {
       <div class="bg-blue-50 rounded-2xl p-4 mb-8">
         <p class="text-blue-700 text-sm font-medium">
           Redirection vers l'accueil dans {{ countdown }} secondes...
+        </p>
+        <p v-if="notice" class="text-blue-700 text-xs mt-2">
+          {{ notice }}
         </p>
       </div>
 

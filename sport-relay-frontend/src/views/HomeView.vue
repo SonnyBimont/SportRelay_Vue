@@ -12,7 +12,7 @@ import type { UserRole } from '../types/auth';
 interface OfferNotificationItem {
   id: number;
   amount: number;
-  status: 'pending' | 'accepted' | 'rejected' | 'cancelled';
+  status: 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'paid';
   buyer?: {
     displayName: string;
   };

@@ -9,7 +9,12 @@ import {
 import { Product } from '../../products/entities/product.entity';
 import { User } from '../../users/entities/user.entity';
 
-export type OfferStatus = 'pending' | 'accepted' | 'rejected' | 'cancelled';
+export type OfferStatus =
+  | 'pending'
+  | 'accepted'
+  | 'rejected'
+  | 'cancelled'
+  | 'paid';
 
 @Table
 export class Offer extends Model {
@@ -47,7 +52,7 @@ export class Offer extends Model {
   declare message: string | null;
 
   @Column({
-    type: DataType.ENUM('pending', 'accepted', 'rejected', 'cancelled'),
+    type: DataType.ENUM('pending', 'accepted', 'rejected', 'cancelled', 'paid'),
     allowNull: false,
     defaultValue: 'pending',
   })

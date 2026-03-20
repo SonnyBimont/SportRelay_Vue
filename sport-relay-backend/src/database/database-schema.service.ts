@@ -24,6 +24,16 @@ export class DatabaseSchemaService implements OnModuleInit {
           'profileImageUrl',
           'VARCHAR(255)',
         );
+        await this.ensureSqliteColumn(
+          'Orders',
+          'stripeSessionId',
+          'VARCHAR(255)',
+        );
+        await this.ensureSqliteUniqueIndex(
+          'Orders',
+          'idx_orders_stripe_session_id_unique',
+          'stripeSessionId',
+        );
         return;
       }
 
@@ -36,6 +46,25 @@ export class DatabaseSchemaService implements OnModuleInit {
         );
         await this.sequelize.query(
           'ALTER TABLE IF EXISTS "Users" ADD COLUMN IF NOT EXISTS "profileImageUrl" VARCHAR(255) NULL;',
+        );
+        await this.sequelize.query(
+          'ALTER TABLE IF EXISTS "Orders" ADD COLUMN IF NOT EXISTS "stripeSessionId" VARCHAR(255) NULL;',
+        );
+        await this.sequelize.query(
+          `DO $$
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1
+              FROM pg_constraint
+              WHERE conname = 'Orders_stripeSessionId_key'
+            ) THEN
+              ALTER TABLE "Orders" ADD CONSTRAINT "Orders_stripeSessionId_key" UNIQUE ("stripeSessionId");
+            END IF;
+          END
+          $$;`,
+        );
+        await this.sequelize.query(
+          `ALTER TYPE "enum_Offers_status" ADD VALUE IF NOT EXISTS 'paid';`,
         );
       }
     } catch (error) {
@@ -61,6 +90,16 @@ export class DatabaseSchemaService implements OnModuleInit {
 
     await this.sequelize.query(
       `ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition};`,
+    );
+  }
+
+  private async ensureSqliteUniqueIndex(
+    tableName: string,
+    indexName: string,
+    columnName: string,
+  ): Promise<void> {
+    await this.sequelize.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS ${indexName} ON ${tableName}(${columnName});`,
     );
   }
 }

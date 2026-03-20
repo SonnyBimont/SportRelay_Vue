@@ -24,7 +24,7 @@ interface OfferItem {
   amount: number;
   quantity: number;
   message: string | null;
-  status: "pending" | "accepted" | "rejected" | "cancelled";
+  status: "pending" | "accepted" | "rejected" | "cancelled" | "paid";
   sellerResponse: string | null;
   createdAt: string;
   buyer?: ApiUser;
@@ -188,6 +188,11 @@ const requireAuthOrRedirect = () => {
   return false;
 };
 
+const fetchProduct = async () => {
+  const response = await apiClient.get<Product>(`/products/${route.params.id}`);
+  product.value = response.data;
+};
+
 const fetchOffers = async () => {
   if (!product.value || !auth.isAuthenticated.value) {
     offers.value = [];
@@ -297,7 +302,7 @@ const refreshInteractions = async () => {
 
   loadingInteractions.value = true;
   try {
-    await Promise.allSettled([fetchOffers(), fetchMessages()]);
+    await Promise.allSettled([fetchProduct(), fetchOffers(), fetchMessages()]);
     await fetchPresence();
     await markCurrentConversationAsRead();
   } finally {
@@ -352,7 +357,7 @@ const setupSocket = () => {
   });
 
   socket.on("offer-updated", () => {
-    void fetchOffers();
+    void Promise.allSettled([fetchProduct(), fetchOffers()]);
   });
 
   socket.on("messages-read", () => {
@@ -370,17 +375,33 @@ const setupSocket = () => {
   });
 };
 
-const handlePayment = async (amount: number, qty: number, isOffer = false) => {
+const handlePayment = async (
+  qty: number,
+  options?: { isOffer?: boolean; offerId?: number },
+) => {
   if (!product.value) return;
+
+  if (!requireAuthOrRedirect()) {
+    return;
+  }
+
+  if (!Number.isInteger(qty) || qty <= 0) {
+    error.value = "La quantite doit etre superieure a 0.";
+    return;
+  }
+
+  if (!options?.isOffer && qty > product.value.stock) {
+    error.value = "Stock insuffisant pour cette quantite.";
+    return;
+  }
 
   buying.value = true;
   try {
     const response = await apiClient.post("/payments/create-checkout-session", {
-      productName: product.value.name,
-      amount: amount, // Le prix (soit product.price, soit offer.amount)
       productId: product.value.id,
       quantity: qty,
-      isOffer: isOffer, // Pour savoir si on traite une offre au retour
+      isOffer: Boolean(options?.isOffer),
+      offerId: options?.offerId,
     });
 
     if (response.data.url) {
@@ -388,52 +409,6 @@ const handlePayment = async (amount: number, qty: number, isOffer = false) => {
     }
   } catch (err) {
     error.value = "Erreur lors de l'initialisation du paiement.";
-  } finally {
-    buying.value = false;
-  }
-};
-
-const buyNow = async () => {
-  error.value = null;
-  actionMessage.value = null;
-
-  if (!requireAuthOrRedirect()) {
-    return;
-  }
-
-  if (!canInteract.value) {
-    error.value = "Tu ne peux pas acheter ta propre annonce.";
-    return;
-  }
-
-  if (!canBuyNow.value) {
-    error.value = "Cette annonce n est plus disponible a l achat.";
-    return;
-  }
-
-  if (!product.value) {
-    return;
-  }
-
-  if (quantity.value <= 0) {
-    error.value = "La quantite doit etre superieure a 0.";
-    return;
-  }
-
-  buying.value = true;
-  try {
-    await apiClient.post("/orders", {
-      productId: product.value.id,
-      quantity: quantity.value,
-    });
-
-    actionMessage.value = "Commande creee avec succes.";
-    const refreshed = await apiClient.get<Product>(
-      `/products/${route.params.id}`,
-    );
-    product.value = refreshed.data;
-  } catch (err) {
-    error.value = extractApiMessage(err, "Achat impossible pour le moment.");
   } finally {
     buying.value = false;
   }
@@ -583,10 +558,7 @@ onMounted(async () => {
   error.value = null;
 
   try {
-    const response = await apiClient.get<Product>(
-      `/products/${route.params.id}`,
-    );
-    product.value = response.data;
+    await fetchProduct();
     applyRouteConversationQuery();
     if (product.value?.price) {
       offerPrice.value = Number(product.value.price);
@@ -733,7 +705,7 @@ onBeforeUnmount(() => {
             <button
               type="button"
               :disabled="buying || !canBuyNow"
-              @click="handlePayment(product.price, quantity)"
+              @click="handlePayment(quantity)"
               class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:bg-blue-300"
             >
               {{ buying ? "Traitement..." : "Acheter maintenant (Stripe)" }}
@@ -817,8 +789,8 @@ onBeforeUnmount(() => {
                 >
                   <button
                     type="button"
-                    :disabled="buying"
-                    @click="handlePayment(offer.amount, offer.quantity)"
+                    :disabled="buying || product.stock < offer.quantity"
+                    @click="handlePayment(offer.quantity, { isOffer: true, offerId: offer.id })"
                     class="w-full rounded-lg bg-green-600 py-2 text-xs font-bold text-white hover:bg-green-700 transition-colors shadow-md flex items-center justify-center gap-2"
                   >
                     <span v-if="buying">Redirection...</span>
@@ -840,6 +812,14 @@ onBeforeUnmount(() => {
                     class="rounded-lg bg-green-600 px-3 py-1 text-xs font-bold text-white hover:bg-green-700"
                   >
                     Accepter
+                  </button>
+                  <button
+                    type="button"
+                    :disabled="updatingOfferId === offer.id"
+                    @click="updateOfferStatus(offer.id, 'rejected')"
+                    class="rounded-lg bg-red-600 px-3 py-1 text-xs font-bold text-white hover:bg-red-700"
+                  >
+                    Refuser
                   </button>
                 </div>
               </li>
